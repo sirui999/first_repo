@@ -1,4 +1,4 @@
-Library
+## Library
 
 library(readr)
 library(here)
@@ -9,3 +9,590 @@ library(patchwork)
 library(ggResidpanel)
 library(ggeffects)
 library(jtools)
+
+## Data
+data<-read_csv(here("H:\PhD_Arbeit\WP1\Thesis\DrY\Data","DrY_ID_AS_PH_BM_IG.csv"),
+               show_col_types = FALSE)%>%
+  # clean column names
+  clean_names()%>%
+  # set factors
+  mutate(id_greenhouse=as.factor(id_greenhouse),
+         community=as.factor(community),
+         phase=as.factor(replicate),
+         drought_level=factor(drought_level,levels=c("1","2","3","4","5")),
+         species_richness=as.factor(species_richness),
+         pla_lan=as.factor(pla_lan),
+         bel_per=as.factor(bel_per),
+         harvest=as.factor(ernte))%>%
+  # recode drought and log transform
+ mutate(
+    waterAv = recode_factor(drought_level,
+                            "1" = 10,
+                            "2" = 20,
+                            "3" = 30,
+                            "4" = 60,
+                            "5" = 100),
+    waterAv = as.numeric(as.character(waterAv)),   
+    waterAv_log = log10(waterAv))%>%
+  rename_with(~ gsub("_ug_g", "", .x))
+
+data_long<-data%>%
+  pivot_longer(names_to = "compound",values_to = "concentration",
+               cols = ja:sulfo_ja)
+
+head(data_long)
+
+## Visualization
+
+plalan_resistance<-ggplot(data_long%>%
+                   filter(pla_lan==1&
+                           phase=="Resistance"),
+       aes(waterAv_log,concentration,color=species_diversity))+
+  geom_point(aes(color=species_diversity))+
+  facet_wrap(~compound,scales = "free_y")+
+  theme_classic()+
+  theme(legend.position = "top")+
+  ylab("Concentration ug/g")+
+  xlab("Water field availability (log10)")+
+  ggtitle("Plantago resistance")
+
+plalan_recovery<-ggplot(data_long%>%
+                   filter(pla_lan==1&
+                           phase=="Recovery"),
+       aes(waterAv_log,concentration,color=species_diversity))+
+  geom_point(aes(color=species_diversity))+
+  facet_wrap(~compound,scales = "free_y")+
+  theme_classic()+
+  theme(legend.position = "top")+
+  ylab("Concentration ug/g")+
+  xlab("Water field availability (log10)")+
+  ggtitle("Plantago recovery")
+
+
+com_Plalan_plot <- plalan_resistance | plalan_recovery
+com_Plalan_plot
+
+belper_resistance<-ggplot(data_long%>%
+                   filter(bel_per==1&
+                           phase=="Resistance"),
+       aes(waterAv_log,concentration,color=species_diversity))+
+  geom_point(aes(color=species_diversity))+
+  facet_wrap(~compound,scales = "free_y")+
+  theme_classic()+
+  theme(legend.position = "top")+
+  ylab("Concentration ug/g")+
+  xlab("Water field availability (log10)")+
+  ggtitle("Belis resistance")
+
+belper_recovery<-ggplot(data_long%>%
+                   filter(bel_per==1&
+                           phase=="Recovery"),
+       aes(waterAv_log,concentration,color=species_diversity))+
+  geom_point(aes(color=species_diversity))+
+  facet_wrap(~compound,scales = "free_y")+
+  theme_classic()+
+  theme(legend.position = "top")+
+  ylab("Concentration ug/g")+
+  xlab("Water field availability (log10)")+
+  ggtitle("Belis recovery")
+
+
+com_belper_plot <- belper_resistance | belper_recovery
+com_belper_plot
+
+## Regressions
+Plantago
+ABA
+
+pl_ABA<-data_long%>%
+  filter(pla_lan==1,
+         compound=="aba")
+
+
+# Resistance----------------------------------------
+pl_ABA_res<-pl_ABA%>%
+  filter(phase=="Resistance")
+
+# Model 1
+res_null<-lm(log10(concentration)~1,data=pl_ABA_res )
+res_water<-lm(log10(concentration)~waterAv_log,data=pl_ABA_res)
+res_div<-lm(log10(concentration)~waterAv_log+species_diversity,data=pl_ABA_res)
+res_water_div<-lm(log10(concentration)~waterAv_log*species_diversity,
+                  data=pl_ABA_res)
+
+shapiro.test(resid(res_water_div))
+
+anova(res_null,res_water,res_div,res_water_div)
+# Generate predictions
+  pred <- ggpredict(res_water_div,terms = c("waterAv_log","species_diversity"))
+
+#Create the plot
+  plot_plalan_res<- plot(pred) +
+    geom_point(data = pl_ABA_res,
+             aes(x = waterAv_log, 
+                 y = concentration,
+                 color = species_diversity),
+             size = 2,
+    inherit.aes = FALSE) +
+    geom_line(linewidth = 1) +
+    theme_classic() +
+    theme(legend.position = "top")+
+   ylim(0,0.25)+
+    ylab("Concentration ng/g") +
+    xlab("Water field availability (log)") +
+    ggtitle("Resistance")
+
+# Recovery----------------------------------------
+pl_ABA_rec<-pl_ABA%>%
+  filter(phase=="Recovery")
+  
+rec_null<-lm(log10(concentration)~1,data=pl_ABA_rec )
+rec_water<-lm(log10(concentration)~waterAv_log,data=pl_ABA_rec)
+rec_div<-lm(log10(concentration)~waterAv_log+species_diversity,data=pl_ABA_rec)
+rec_water_div<-lm(log10(concentration)~waterAv_log*species_diversity,
+                  data=pl_ABA_rec)
+
+shapiro.test(resid(rec_water_div))
+anova(rec_null,rec_water,rec_div,rec_water_div)
+
+# Generate predictions
+  pred <- ggpredict(rec_water_div,terms = c("waterAv_log","species_diversity"))
+
+#Create the plot
+  
+  #Model does not show significance, so lines were removed:
+plot_pred_empty <- plot(pred)
+plot_pred_empty$layers <- list()
+  
+ plot_plalan_rec <- plot_pred_empty+
+    geom_point(data = pl_ABA_rec,
+             aes(x = waterAv_log, 
+                 y = concentration
+                 color = species_diversity),
+             size = 2,
+    inherit.aes = FALSE)+
+    theme_classic() +
+    theme(legend.position = "top")+
+   ylim(0,0.25)+
+    ylab("Concentration ng/g") +
+    xlab("Water field availability (log)") +
+    ggtitle("Recovery")
+
+## Plot
+
+com_Plalan_plot <-  (plot_plalan_res |  plot_plalan_rec)+ 
+  plot_annotation(title = "ABA -Plantago lanceolata",
+                  theme = theme(plot.title = element_text(hjust = 0.5)))
+com_Plalan_plot
+
+## JA
+
+pl_JA<-data_long%>%
+  filter(pla_lan==1,
+         compound=="ja")
+
+
+# Resistance----------------------------------------
+pl_JA_res<-pl_JA%>%
+  filter(phase=="Resistance")
+
+# Model 1
+res_null<-lm(log10(concentration)~1,data=pl_JA_res )
+res_water<-lm(log10(concentration)~waterAv_log,data=pl_JA_res)
+res_div<-lm(log10(concentration)~waterAv_log+species_diversity,data=pl_JA_res)
+res_water_div<-lm(log10(concentration)~waterAv_log*species_diversity,
+                  data=pl_JA_res)
+
+shapiro.test(resid(res_water_div))
+
+anova(res_null,res_water,res_div,res_water_div)
+
+# Generate predictions
+  pred <- ggpredict(res_water_div,terms = c("waterAv_log","species_diversity"))
+
+#Model does not show significance, so lines were removed:
+plot_pred_empty <- plot(pred)
+plot_pred_empty$layers <- list()
+
+  #  Create the plot
+  plot_pla_ja_res<- plot_pred_empty +
+    geom_point(data = pl_JA_res,
+             aes(x = waterAv_log, 
+                 y = concentration,
+                 color = species_diversity),
+             size = 2,
+    inherit.aes = FALSE) +
+    theme_classic() +
+    theme(legend.position = "top")+
+   ylim(0,0.8)+
+    ylab("Concentration ng/g") +
+    xlab("Water field availability (log)") +
+    ggtitle("Resistance")
+
+# Recovery----------------------------------------
+pl_JA_rec<-pl_JA%>%
+  filter(phase=="Recovery")
+  
+rec_null<-lm(sqrt(concentration)~1,data=pl_JA_rec )
+rec_water<-lm(sqrt(concentration)~waterAv_log,data=pl_JA_rec)
+rec_div<-lm(sqrt(concentration)~waterAv_log+species_diversity,data=pl_JA_rec)
+rec_water_div<-lm(sqrt(concentration)~waterAv_log*species_diversity,
+                  data=pl_JA_rec)
+
+anova(rec_null,rec_water,rec_div,rec_water_div)
+
+shapiro.test(resid(rec_water_div))
+
+# Generate predictions
+  pred <- ggpredict(rec_water_div,terms = c("waterAv_log","species_diversity"))
+
+Model has sqrt-transformed response. Back-transforming predictions to
+  original response scale. Standard errors are still on the transformed
+  scale.
+
+  # Create the plot
+
+ #Model does not show significance, so lines were removed:
+plot_pred_empty <- plot(pred)
+plot_pred_empty$layers <- list()
+
+  #  Create the plot
+  plot_pla_ja_rec<- plot(plot_pred_empty) +
+    geom_point(data = pl_JA_rec,
+             aes(x = waterAv_log, 
+                 y = concentration,
+                 color = species_diversity),
+             size = 2,
+    inherit.aes = FALSE) +
+    theme_classic() +
+    theme(legend.position = "top")+
+   ylim(0,0.8)+
+    ylab("Concentration ng/g") +
+    xlab("Water field availability (log)") +
+    ggtitle("Recovery")
+
+## Plot
+
+com_Plalan_plot <-  (plot_pla_ja_res |  plot_pla_ja_rec)+ 
+  plot_annotation(title = "JA- Plantago lanceolata",
+                  theme = theme(plot.title = element_text(hjust = 0.5)))
+com_Plalan_plot
+
+## Belis
+## ABA
+
+bel_ABA<-data_long%>%
+  filter(bel_per==1,
+         compound=="aba")
+
+
+# Resistance----------------------------------------
+bel_ABA_res<-bel_ABA%>%
+  filter(phase=="Resistance")
+
+# Model 1
+res_null<-lm((concentration)~1,data=bel_ABA_res )
+res_water<-lm((concentration)~waterAv_log,data=bel_ABA_res)
+res_div<-lm((concentration)~waterAv_log+species_diversity,data=bel_ABA_res)
+res_water_div<-lm((concentration)~waterAv_log*species_diversity,
+                  data=bel_ABA_res)
+
+
+anova(res_null,res_water,res_div,res_water_div)
+
+shapiro.test(resid(res_water_div))
+
+# Generate predictions
+  pred <- ggpredict(res_water_div,terms = "waterAv_log")
+
+  # 6. Create the plot
+  plot_belper_res<- plot(pred) +
+    geom_point(data = bel_ABA_res,
+             aes(x = waterAv_log, 
+                 y = concentration,
+                 color = species_diversity),
+             size = 2,
+    inherit.aes = FALSE) +
+    scale_color_manual(values = scales::hue_pal()(length(unique(bel_ABA_res$species_diversity)))) +
+    theme_classic() +
+    theme(legend.position = "top")+
+   ylim(0,0.20)+
+    ylab("Concentration ng/g") +
+    xlab("Water field availability (log)") +
+    ggtitle("Resistance")
+
+# Recovery----------------------------------------
+bel_ABA_rec<-bel_ABA%>%
+  filter(phase=="Recovery")
+  
+rec_null<-lm(log10(concentration)~1,data=bel_ABA_rec )
+rec_water<-lm(log10(concentration)~waterAv_log,data=bel_ABA_rec)
+rec_div<-lm(log10(concentration)~waterAv_log+species_diversity,data=bel_ABA_rec)
+rec_water_div<-lm(log10(concentration)~waterAv_log*species_diversity,
+                  data=bel_ABA_rec)
+
+anova(rec_null,rec_water,rec_div,rec_water_div)
+
+shapiro.test(resid(rec_water_div))
+
+# Generate predictions
+  pred <- ggpredict(rec_water_div,terms = "waterAv_log")
+
+Model has log10-transformed response. Back-transforming predictions to
+  original response scale. Standard errors are still on the transformed
+  scale.
+
+  # 6. Create the plot
+  plot_belper_rec<- plot(pred) +
+    geom_point(data = bel_ABA_rec,
+             aes(x = waterAv_log, 
+                 y = concentration,
+                 color = species_diversity),
+             size = 2,
+    inherit.aes = FALSE) +
+    scale_color_manual(values = scales::hue_pal()(length(unique(bel_ABA_rec$species_diversity)))) +
+    theme_classic() +
+    theme(legend.position = "top")+
+   ylim(0,0.20)+
+    ylab("Concentration ng/g") +
+    xlab("Water field availability (log)") +
+    ggtitle("Recovery")
+
+## Plot 
+
+com_belper_plot <-  (plot_belper_res |  plot_belper_rec)+ 
+  plot_annotation(title = "ABA -Belis perennis",
+                  theme = theme(plot.title = element_text(hjust = 0.5)))
+com_belper_plot
+
+JA
+
+bel_JA<-data_long%>%
+  filter(bel_per==1,
+         compound=="ja")
+
+
+# Resistance----------------------------------------
+bel_JA_res<-bel_JA%>%
+  filter(phase=="Resistance")
+
+# Model 1
+res_null<-lm(log10(concentration)~1,data=bel_JA_res )
+res_water<-lm(log10(concentration)~waterAv_log,data=bel_JA_res)
+res_div<-lm(log10(concentration)~waterAv_log+species_diversity,data=bel_JA_res)
+res_water_div<-lm(log10(concentration)~waterAv_log*species_diversity,
+                  data=bel_JA_res)
+
+
+anova(res_null,res_water,res_div,res_water_div)
+
+shapiro.test(resid(res_water_div))
+
+# Generate predictions
+  pred <- ggpredict(res_water_div,terms = c("waterAv_log","species_diversity"))
+
+ #Model does not show significance, so lines were removed:
+plot_pred_empty <- plot(pred)
+plot_pred_empty$layers <- list()
+
+  #  Create the plot
+  plot_bel_ja_res<- plot_pred_empty +
+    geom_point(data = bel_JA_res,
+             aes(x = waterAv_log, 
+                 y = concentration,
+                 color = species_diversity),
+             size = 2,
+    inherit.aes = FALSE) +
+    theme_classic() +
+    theme(legend.position = "top")+
+   ylim(0,0.9)+
+    ylab("Concentration ng/g") +
+    xlab("Water field availability (log)") +
+    ggtitle("Resistance")
+
+# Recovery----------------------------------------
+bel_JA_rec<-bel_JA%>%
+  filter(phase=="Recovery")
+  
+rec_null<-lm(log10(concentration)~1,data=bel_JA_rec )
+rec_water<-lm(log10(concentration)~waterAv_log,data=bel_JA_rec)
+rec_div<-lm(log10(concentration)~waterAv_log+species_diversity,data=bel_JA_rec)
+rec_water_div<-lm(log10(concentration)~waterAv_log*species_diversity,
+                  data=bel_JA_rec)
+
+anova(rec_null,rec_water,rec_div,rec_water_div)
+
+shapiro.test(resid(rec_water_div))
+
+# Generate predictions
+  pred <- ggpredict(rec_water_div,terms = c("waterAv_log","species_diversity"))
+
+ # Create the plot
+
+  #  Create the plot
+  plot_bel_ja_rec<- plot(pred) +
+    geom_point(data = bel_JA_rec,
+             aes(x = waterAv_log, 
+                 y = concentration,
+                 color = species_diversity),
+             size = 2,
+    inherit.aes = FALSE) +
+        theme_classic() +
+    theme(legend.position = "top")+
+   ylim(0,0.9)+
+    ylab("Concentration ng/g") +
+    xlab("Water field availability (log)") +
+    ggtitle("Recovery")
+
+## Plot
+
+com_bel_ja_plot <-  (plot_bel_ja_res |  plot_bel_ja_rec)+ 
+  plot_annotation(title = "JA- Belis perennis",
+                  theme = theme(plot.title = element_text(hjust = 0.5)))
+com_bel_ja_plot
+
+## Log response ratio effect size
+
+## LRR: Positive LRR (recovery > resistance), compound concentration increase during recovery.
+
+## Plantago
+
+# ABA------------------------------------------------------------
+
+pla_ABA_LRR <- data_long %>%
+  filter(pla_lan == 1, compound == "aba") %>%
+  group_by(species_diversity, waterAv_log,drought_level) %>%
+  summarise(
+    mean_resistance = mean(concentration[phase == "Resistance"], na.rm = TRUE) + 1e-5,
+    mean_recovery   = mean(concentration[phase == "Recovery"], na.rm = TRUE) + 1e-5,
+    LRR             = log(mean_recovery / mean_resistance),
+    # SE of LRR across replicates
+    se_LRR          = sd(log((concentration[phase == "Recovery"] + 1e-5) / 
+                             (concentration[phase == "Resistance"] + 1e-5)), na.rm = TRUE) / 
+                      sqrt(n()) )
+
+pla_ABA_LRR <- pla_ABA_LRR %>%
+  mutate(
+    LRR_lower = LRR - 1.96 * se_LRR,
+    LRR_upper = LRR + 1.96 * se_LRR )
+
+
+
+ggplot(pla_ABA_LRR, aes(x = factor(drought_level), y = LRR, 
+                        group = species_diversity, color = species_diversity, fill = species_diversity)) +
+  geom_ribbon(aes(ymin = LRR_lower, ymax = LRR_upper), alpha = 0.2, color = NA) +  # shaded CI
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  theme_classic() +
+  xlab("Drought level") +
+  ylab("Log Response Ratio (LRR)") +
+  theme(legend.position = "top")
+
+# Model
+null<-lm(LRR~1,data=pla_ABA_LRR)
+water<-lm(LRR~waterAv_log,data=pla_ABA_LRR)
+div<-lm(LRR~waterAv_log+species_diversity,data=pla_ABA_LRR)
+water_div<-lm(LRR~waterAv_log*species_diversity,
+                  data=pla_ABA_LRR)
+
+
+anova(null,water,div,water_div)
+shapiro.test(resid(water_div))
+
+pred <- ggpredict(water_div,terms = c("waterAv_log","species_diversity"))
+
+  # 6. Create the plot
+  pla_ABA_LRR_plot<- plot(pred) +
+    geom_point(data = pla_ABA_LRR,
+             aes(x = waterAv_log, 
+                 y = LRR,
+                 color = species_diversity),
+             size = 2,
+    inherit.aes = FALSE) +
+    geom_line(linewidth = 1) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+    theme_classic() +
+    ylim(-1.5,1.5)+
+    theme(legend.position = "top")+
+     ylab("Log Response Ratio (LRR)") +
+    xlab("Water field availability (log)") +
+    ggtitle("Effect size")
+
+## Plot
+
+com_Plalan_plot <-  (plot_plalan_res |  plot_plalan_rec|pla_ABA_LRR_plot)+ 
+  plot_annotation(title = "ABA -Plantago lanceolata",
+                  theme = theme(plot.title = element_text(hjust = 0.5)))
+com_Plalan_plot
+
+# JA------------------------------------------------------------
+
+pla_JA_LRR <- data_long %>%
+  filter(pla_lan == 1, compound == "ja") %>%
+  group_by(species_diversity, waterAv_log,drought_level) %>%
+  summarise(
+    mean_resistance = mean(concentration[phase == "Resistance"], na.rm = TRUE) + 1e-5,
+    mean_recovery   = mean(concentration[phase == "Recovery"], na.rm = TRUE) + 1e-5,
+    LRR             = log(mean_recovery / mean_resistance),
+    # SE of LRR across replicates
+    se_LRR          = sd(log((concentration[phase == "Recovery"] + 1e-5) / 
+                             (concentration[phase == "Resistance"] + 1e-5)), na.rm = TRUE) / 
+                      sqrt(n()) )
+
+pla_JA_LRR <- pla_JA_LRR %>%
+  mutate(
+    LRR_lower = LRR - 1.96 * se_LRR,
+    LRR_upper = LRR + 1.96 * se_LRR )
+
+
+
+ggplot(pla_JA_LRR, aes(x = factor(drought_level), y = LRR, 
+                        group = species_diversity, color = species_diversity, fill = species_diversity)) +
+  geom_ribbon(aes(ymin = LRR_lower, ymax = LRR_upper), alpha = 0.2, color = NA) +  # shaded CI
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  theme_classic() +
+  xlab("Drought level") +
+  ylab("Log Response Ratio (LRR)") +
+  theme(legend.position = "top")
+
+# Model
+null<-lm(LRR~1,data=pla_JA_LRR)
+water<-lm(LRR~waterAv_log,data=pla_JA_LRR)
+div<-lm(LRR~waterAv_log+species_diversity,data=pla_JA_LRR)
+water_div<-lm(LRR~waterAv_log*species_diversity,
+                  data=pla_JA_LRR)
+
+
+anova(null,water,div,water_div)
+
+shapiro.test(resid(water_div))
+ pred <- ggpredict(water_div,terms = c("waterAv_log","species_diversity"))
+
+  # 6. Create the plot
+  pla_JA_LRR_plot<- plot(pred) +
+    geom_point(data = pla_JA_LRR,
+             aes(x = waterAv_log, 
+                 y = LRR,
+                 color = species_diversity),
+             size = 2,
+    inherit.aes = FALSE) +
+    geom_line(linewidth = 1) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+    theme_classic() +
+    ylim(-1.5,1.5)+
+    theme(legend.position = "top")+
+     ylab("Log Response Ratio (LRR)") +
+    xlab("Water field availability (log)") +
+    ggtitle("Effect size")
+
+ ## Plot
+
+com_Pla_ja_plot <-  (plot_pla_ja_res |  plot_pla_ja_rec|pla_JA_LRR_plot)+ 
+  plot_annotation(title = "JA -Plantago lanceolata",
+                  theme = theme(plot.title = element_text(hjust = 0.5)))
+com_Pla_ja_plot
+
+
