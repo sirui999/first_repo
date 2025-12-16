@@ -246,9 +246,6 @@ shapiro.test(resid(rec_water_div))
 # Generate predictions
   pred <- ggpredict(rec_water_div,terms = c("waterAv_log","species_diversity"))
 
-Model has sqrt-transformed response. Back-transforming predictions to
-  original response scale. Standard errors are still on the transformed
-  scale.
 
   # Create the plot
 
@@ -338,9 +335,6 @@ shapiro.test(resid(rec_water_div))
 # Generate predictions
   pred <- ggpredict(rec_water_div,terms = "waterAv_log")
 
-Model has log10-transformed response. Back-transforming predictions to
-  original response scale. Standard errors are still on the transformed
-  scale.
 
   # 6. Create the plot
   plot_belper_rec<- plot(pred) +
