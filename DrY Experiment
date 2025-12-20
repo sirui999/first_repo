@@ -1,46 +1,101 @@
 ## Library
-
 library(readr)
 library(here)
 library(dplyr)
-library(janitor)# clean names
+library(janitor)
 library(tidyverse)
 library(patchwork)
 library(ggResidpanel)
 library(ggeffects)
 library(jtools)
 
-## Data
-data<-read_csv(here("H:\PhD_Arbeit\WP1\Thesis\DrY\Data","DrY_ID_AS_PH_BM_IG.csv"),
-               show_col_types = FALSE)%>%
-  # clean column names
-  clean_names()%>%
+## Data - 完整的修正版本
+data <- read_csv2(
+  here("H:/PhD_Arbeit/WP1/Thesis/DrY/Data", "DrY_ID_AS_PH_BM_IG.csv"),
+  show_col_types = FALSE,
+  locale = locale(encoding = "UTF-8", decimal_mark = ",", grouping_mark = ".")
+) %>%
+  clean_names() %>%
+  # 先将所有化合物列转换为数值型
+  mutate(across(ends_with("_g_g"), ~ as.numeric(.))) %>%
   # set factors
-  mutate(id_greenhouse=as.factor(id_greenhouse),
-         community=as.factor(community),
-         phase=as.factor(replicate),
-         drought_level=factor(drought_level,levels=c("1","2","3","4","5")),
-         species_richness=as.factor(species_richness),
-         pla_lan=as.factor(pla_lan),
-         bel_per=as.factor(bel_per),
-         harvest=as.factor(ernte))%>%
+  mutate(
+    id_greenhouse = as.factor(id_greenhouse),
+    community = as.factor(community),
+    phase = as.factor(replicate),
+    drought_level = factor(drought_level, levels = c("1", "2", "3", "4", "5")),
+    species_richness = as.factor(species_richness),
+    pla_lan = as.factor(pla_lan),
+    bel_per = as.factor(bel_per),
+    harvest = as.factor(ernte)
+  ) %>%
   # recode drought and log transform
- mutate(
+  mutate(
     waterAv = recode_factor(drought_level,
-                            "1" = 10,
-                            "2" = 20,
-                            "3" = 30,
-                            "4" = 60,
-                            "5" = 100),
-    waterAv = as.numeric(as.character(waterAv)),   
-    waterAv_log = log10(waterAv))%>%
-  rename_with(~ gsub("_ug_g", "", .x))
+                           "1" = 10,
+                           "2" = 20,
+                           "3" = 30,
+                           "4" = 60,
+                           "5" = 100),
+    waterAv = as.numeric(as.character(waterAv)),
+    waterAv_log = log10(waterAv)
+  ) %>%
+  # 重命名化合物列，移除 "_g_g" 后缀
+  rename_with(~ gsub("_g_g$", "", .x))
 
-data_long<-data%>%
-  pivot_longer(names_to = "compound",values_to = "concentration",
-               cols = ja:sulfo_ja)
+# 检查数据结构
+cat("数据维度：", dim(data), "\n")
+cat("列名：\n")
+print(names(data))
 
-head(data_long)
+## 创建长格式数据
+# 定义化合物列
+compound_cols <- c("ja", "aba", "ja_ile", "opda", "oh_ja", "sa_glu_mz137", "sulfo_ja")
+
+# 再次确保所有化合物列都是数值型
+data <- data %>%
+  mutate(across(all_of(intersect(compound_cols, names(data))), ~ as.numeric(.)))
+
+# 创建长格式数据
+data_long <- data %>%
+  pivot_longer(
+    names_to = "compound",
+    values_to = "concentration",
+    cols = all_of(intersect(compound_cols, names(data)))
+  )
+# 转换 phase
+data_long <- data_long %>%
+  mutate(
+    phase = case_when(
+      as.character(phase) == "1" ~ "Resistance",
+      as.character(phase) == "2" ~ "Recovery",
+      TRUE ~ as.character(phase)
+    ),
+    phase = factor(phase, levels = c("Resistance", "Recovery"))
+  )
+
+# 重命名 species_diversity
+if (!"species_diversity" %in% names(data_long) && "species_richness" %in% names(data_long)) {
+  data_long <- data_long %>%
+    rename(species_diversity = species_richness)
+}
+
+# 移除浓度缺失值
+data_long <- data_long %>%
+  filter(!is.na(concentration))
+
+cat("\n长格式数据创建成功！\n")
+cat("数据维度：", dim(data_long), "\n")
+cat("化合物类型：\n")
+print(table(data_long$compound))
+cat("\n阶段分布：\n")
+print(table(data_long$phase))
+
+## 现在可以开始你的分析
+## 1. Visualization - 首先测试 Plantago
+
+cat("\n=== 创建 Plantago lanceolata 图形 ===\n")
+
 
 ## Visualization
 
@@ -52,7 +107,7 @@ plalan_resistance<-ggplot(data_long%>%
   facet_wrap(~compound,scales = "free_y")+
   theme_classic()+
   theme(legend.position = "top")+
-  ylab("Concentration ug/g")+
+  ylab("Concentration µg/g")+
   xlab("Water field availability (log10)")+
   ggtitle("Plantago resistance")
 
@@ -64,13 +119,16 @@ plalan_recovery<-ggplot(data_long%>%
   facet_wrap(~compound,scales = "free_y")+
   theme_classic()+
   theme(legend.position = "top")+
-  ylab("Concentration ug/g")+
+  ylab("Concentration µg/g")+
   xlab("Water field availability (log10)")+
   ggtitle("Plantago recovery")
 
 
 com_Plalan_plot <- plalan_resistance | plalan_recovery
-com_Plalan_plot
+print(com_Plalan_plot)
+
+## 2. Bellis perennis 图形
+cat("\n=== 创建 Bellis perennis 图形 ===\n")
 
 belper_resistance<-ggplot(data_long%>%
                    filter(bel_per==1&
@@ -80,9 +138,9 @@ belper_resistance<-ggplot(data_long%>%
   facet_wrap(~compound,scales = "free_y")+
   theme_classic()+
   theme(legend.position = "top")+
-  ylab("Concentration ug/g")+
+  ylab("Concentration µg/g")+
   xlab("Water field availability (log10)")+
-  ggtitle("Belis resistance")
+  ggtitle("Bellis resistance")
 
 belper_recovery<-ggplot(data_long%>%
                    filter(bel_per==1&
@@ -92,14 +150,17 @@ belper_recovery<-ggplot(data_long%>%
   facet_wrap(~compound,scales = "free_y")+
   theme_classic()+
   theme(legend.position = "top")+
-  ylab("Concentration ug/g")+
+  ylab("Concentration µg/g")+
   xlab("Water field availability (log10)")+
-  ggtitle("Belis recovery")
+  ggtitle("Bellis recovery")
 
 
 com_belper_plot <- belper_resistance | belper_recovery
-com_belper_plot
+print(com_belper_plot)
 
+
+## 3. 回归分析示例 - Plantago ABA
+cat("\n=== Plantago ABA 回归分析 ===\n")
 ## Regressions
 Plantago
 ABA
@@ -113,6 +174,11 @@ pl_ABA<-data_long%>%
 pl_ABA_res<-pl_ABA%>%
   filter(phase=="Resistance")
 
+if (nrow(pl_ABA_res) > 10) {
+  # 添加小的常数避免 log(0)
+  pl_ABA_res <- pl_ABA_res %>%
+    mutate(concentration_adj = concentration + 1e-10)
+
 # Model 1
 res_null<-lm(log10(concentration)~1,data=pl_ABA_res )
 res_water<-lm(log10(concentration)~waterAv_log,data=pl_ABA_res)
@@ -122,7 +188,7 @@ res_water_div<-lm(log10(concentration)~waterAv_log*species_diversity,
 
 shapiro.test(resid(res_water_div))
 
-anova(res_null,res_water,res_div,res_water_div)
+print(anova(res_null,res_water,res_div,res_water_div))
 # Generate predictions
   pred <- ggpredict(res_water_div,terms = c("waterAv_log","species_diversity"))
 
@@ -138,7 +204,7 @@ anova(res_null,res_water,res_div,res_water_div)
     theme_classic() +
     theme(legend.position = "top")+
    ylim(0,0.25)+
-    ylab("Concentration ng/g") +
+    ylab("Concentration µg/g") +
     xlab("Water field availability (log)") +
     ggtitle("Resistance")
 
@@ -174,7 +240,7 @@ plot_pred_empty$layers <- list()
     theme_classic() +
     theme(legend.position = "top")+
    ylim(0,0.25)+
-    ylab("Concentration ng/g") +
+    ylab("Concentration µg/g") +
     xlab("Water field availability (log)") +
     ggtitle("Recovery")
 
@@ -225,7 +291,7 @@ plot_pred_empty$layers <- list()
     theme_classic() +
     theme(legend.position = "top")+
    ylim(0,0.8)+
-    ylab("Concentration ng/g") +
+    ylab("Concentration µg/g") +
     xlab("Water field availability (log)") +
     ggtitle("Resistance")
 
@@ -264,7 +330,7 @@ plot_pred_empty$layers <- list()
     theme_classic() +
     theme(legend.position = "top")+
    ylim(0,0.8)+
-    ylab("Concentration ng/g") +
+    ylab("Concentration µg/g") +
     xlab("Water field availability (log)") +
     ggtitle("Recovery")
 
@@ -314,7 +380,7 @@ shapiro.test(resid(res_water_div))
     theme_classic() +
     theme(legend.position = "top")+
    ylim(0,0.20)+
-    ylab("Concentration ng/g") +
+    ylab("Concentration µg/g") +
     xlab("Water field availability (log)") +
     ggtitle("Resistance")
 
@@ -348,7 +414,7 @@ shapiro.test(resid(rec_water_div))
     theme_classic() +
     theme(legend.position = "top")+
    ylim(0,0.20)+
-    ylab("Concentration ng/g") +
+    ylab("Concentration µg/g") +
     xlab("Water field availability (log)") +
     ggtitle("Recovery")
 
@@ -400,7 +466,7 @@ plot_pred_empty$layers <- list()
     theme_classic() +
     theme(legend.position = "top")+
    ylim(0,0.9)+
-    ylab("Concentration ng/g") +
+    ylab("Concentration µg/g") +
     xlab("Water field availability (log)") +
     ggtitle("Resistance")
 
@@ -434,14 +500,14 @@ shapiro.test(resid(rec_water_div))
         theme_classic() +
     theme(legend.position = "top")+
    ylim(0,0.9)+
-    ylab("Concentration ng/g") +
+    ylab("Concentration µg/g") +
     xlab("Water field availability (log)") +
     ggtitle("Recovery")
 
 ## Plot
 
 com_bel_ja_plot <-  (plot_bel_ja_res |  plot_bel_ja_rec)+ 
-  plot_annotation(title = "JA- Belis perennis",
+  plot_annotation(title = "JA- Bellis perennis",
                   theme = theme(plot.title = element_text(hjust = 0.5)))
 com_bel_ja_plot
 
