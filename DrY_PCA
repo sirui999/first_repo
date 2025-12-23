@@ -12,6 +12,86 @@ library(factoextra)
 library(ggrepel)
 library(patchwork)
 library(openxlsx)
+library(lme4)
+library(lmerTest)
+
+## Data - 完整的修正版本
+data <- read_csv2(
+  here("H:/PhD_Arbeit/WP1/Thesis/DrY/Data", "DrY_ID_AS_PH_BM_IG.csv"),
+  show_col_types = FALSE,
+  locale = locale(encoding = "UTF-8", decimal_mark = ",", grouping_mark = ".")
+) %>%
+  clean_names() %>%
+  # 先将所有化合物列转换为数值型
+  mutate(across(ends_with("_g_g"), ~ as.numeric(.))) %>%
+# Create chamber variable if not already present
+  mutate(chamber = factor(paste(cabin, desk, sep = "_")))%>%
+  # set factors
+  mutate(
+    id_greenhouse = as.factor(id_greenhouse),
+    community = as.factor(community),
+    phase = as.factor(replicate),
+    drought_level = factor(drought_level, levels = c("1", "2", "3", "4", "5")),
+    species_richness = as.factor(species_richness),
+    pla_lan = as.factor(pla_lan),
+    bel_per = as.factor(bel_per),
+    harvest = as.factor(ernte)
+  ) %>%
+  # recode drought and log transform
+  mutate(
+    waterAv = recode_factor(drought_level,
+                           "1" = 10,
+                           "2" = 20,
+                           "3" = 30,
+                           "4" = 60,
+                           "5" = 100),
+    waterAv = as.numeric(as.character(waterAv)),
+    waterAv_log = log10(waterAv)
+  ) %>%
+  # 重命名化合物列，移除 "_g_g" 后缀
+  rename_with(~ gsub("_g_g$", "", .x))
+
+# 检查数据结构
+cat("数据维度：", dim(data), "\n")
+cat("列名：\n")
+print(names(data))
+
+## 创建长格式数据
+# 定义化合物列
+compound_cols <- c("ja", "aba", "ja_ile", "opda", "oh_ja", "sa_glu_mz137", "sulfo_ja")
+
+# 再次确保所有化合物列都是数值型
+data <- data %>%
+  mutate(across(all_of(intersect(compound_cols, names(data))), ~ as.numeric(.)))
+
+# 创建长格式数据
+data_long <- data %>%
+  pivot_longer(
+    names_to = "compound",
+    values_to = "concentration",
+    cols = all_of(intersect(compound_cols, names(data)))
+  )
+# 转换 phase
+data_long <- data_long %>%
+  mutate(
+    phase = case_when(
+      as.character(phase) == "1" ~ "Resistance",
+      as.character(phase) == "2" ~ "Recovery",
+      TRUE ~ as.character(phase)
+    ),
+    phase = factor(phase, levels = c("Resistance", "Recovery"))
+  )
+
+# 重命名 species_diversity
+if (!"species_diversity" %in% names(data_long) && "species_richness" %in% names(data_long)) {
+  data_long <- data_long %>%
+    rename(species_diversity = species_richness)
+}
+
+# 移除浓度缺失值
+data_long <- data_long %>%
+  filter(!is.na(concentration))
+
 
 
 # 1. 数据准备 - 筛选Resistance阶段，ABA化合物
