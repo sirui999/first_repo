@@ -8,6 +8,9 @@ library(patchwork)
 library(ggResidpanel)
 library(ggeffects)
 library(jtools)
+library(lme4)
+library(ggeffects)
+library(lmerTest)
 
 ## Data - 完整的修正版本
 data <- read_csv2(
@@ -18,6 +21,8 @@ data <- read_csv2(
   clean_names() %>%
   # 先将所有化合物列转换为数值型
   mutate(across(ends_with("_g_g"), ~ as.numeric(.))) %>%
+# Create chamber variable if not already present
+  mutate(chamber = factor(paste(cabin, desk, sep = "_")))%>%
   # set factors
   mutate(
     id_greenhouse = as.factor(id_greenhouse),
@@ -180,76 +185,76 @@ if (nrow(pl_ABA_res) > 10) {
     mutate(concentration_adj = concentration + 1e-10)
 
 # Model 1
-res_null<-lm(log10(concentration)~1,data=pl_ABA_res )
-res_water<-lm(log10(concentration)~waterAv_log,data=pl_ABA_res)
-res_div<-lm(log10(concentration)~waterAv_log+species_diversity,data=pl_ABA_res)
-res_water_div<-lm(log10(concentration)~waterAv_log*species_diversity,
-                  data=pl_ABA_res)
+res_null <- lmer(log10(concentration) ~ 1 + (1|chamber), data = pl_JA_res)
+res_water <- lmer(log10(concentration) ~ waterAv_log + (1|chamber), data = pl_JA_res)
+res_div <- lmer(log10(concentration) ~ waterAv_log + species_diversity + (1|chamber), 
+                data = pl_JA_res)
+res_water_div <- lmer(log10(concentration) ~ waterAv_log * species_diversity + (1|chamber),
+                      data = pl_JA_res)
 
 shapiro.test(resid(res_water_div))
 
-print(anova(res_null,res_water,res_div,res_water_div))
-# Generate predictions
-  pred <- ggpredict(res_water_div,terms = c("waterAv_log","species_diversity"))
+# Model comparison using likelihood ratio tests (ANOVA)
+anova(res_null, res_water, res_div, res_water_div, test = "LRT")
 
-#Create the plot
-  plot_plalan_res<- plot(pred) +
-    geom_point(data = pl_ABA_res,
+# Generate predictions (marginal effects, excluding random effects)
+pred <- ggpredict(res_water_div, 
+                  terms = c("waterAv_log", "species_diversity"),
+                  type = "fixed")  # fixed effects only
+
+# Create the plot
+plot_plalan_res <- plot(pred) +
+  geom_point(data = pl_JA_res,
              aes(x = waterAv_log, 
                  y = concentration,
                  color = species_diversity),
              size = 2,
-    inherit.aes = FALSE) +
-    geom_line(linewidth = 1) +
-    theme_classic() +
-    theme(legend.position = "top")+
-   ylim(0,0.25)+
-    ylab("Concentration µg/g") +
-    xlab("Water field availability (log)") +
-    ggtitle("Resistance")
+             inherit.aes = FALSE) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  theme(legend.position = "top") +
+  ylim(0, 0.25) +
+  ylab("Concentration µg/g") +
+  xlab("Water field availability (log)") +
+  ggtitle("Resistance")
 
 # Recovery----------------------------------------
 pl_ABA_rec<-pl_ABA%>%
   filter(phase=="Recovery")
   
-rec_null<-lm(log10(concentration)~1,data=pl_ABA_rec )
-rec_water<-lm(log10(concentration)~waterAv_log,data=pl_ABA_rec)
-rec_div<-lm(log10(concentration)~waterAv_log+species_diversity,data=pl_ABA_rec)
-rec_water_div<-lm(log10(concentration)~waterAv_log*species_diversity,
-                  data=pl_ABA_rec)
+rec_null <- lmer(log10(concentration) ~ 1 + (1|chamber), data = pl_ABA_rec)
+rec_water <- lmer(log10(concentration) ~ waterAv_log + (1|chamber), data = pl_ABA_rec)
+rec_div <- lmer(log10(concentration) ~ waterAv_log + species_diversity + (1|chamber), 
+                data = pl_ABA_rec)
+rec_water_div <- lmer(log10(concentration) ~ waterAv_log * species_diversity + (1|chamber),
+                      data = pl_ABA_rec)
 
 shapiro.test(resid(rec_water_div))
-anova(rec_null,rec_water,rec_div,rec_water_div)
 
-# Generate predictions
-  pred <- ggpredict(rec_water_div,terms = c("waterAv_log","species_diversity"))
+# Model comparison using likelihood ratio tests (ANOVA)
+anova(rec_null, rec_water, rec_div, rec_water_div, test = "LRT")
 
-#Create the plot
-  
-  #Model does not show significance, so lines were removed:
-plot_pred_empty <- plot(pred)
-plot_pred_empty$layers <- list()
-  
- plot_plalan_rec <- plot_pred_empty+
-    geom_point(data = pl_ABA_rec,
+# Generate predictions (marginal effects, excluding random effects)
+pred <- ggpredict(rec_water_div, 
+                  terms = c("waterAv_log", "species_diversity"),
+                  type = "fixed")  # fixed effects only
+
+# Create the plot
+plot_plalan_rec <- plot(pred) +
+  geom_point(data = pl_ABA_rec,
              aes(x = waterAv_log, 
-                 y = concentration
+                 y = concentration,
                  color = species_diversity),
              size = 2,
-    inherit.aes = FALSE)+
-    theme_classic() +
-    theme(legend.position = "top")+
-   ylim(0,0.25)+
-    ylab("Concentration µg/g") +
-    xlab("Water field availability (log)") +
-    ggtitle("Recovery")
+             inherit.aes = FALSE) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  theme(legend.position = "top") +
+  ylim(0, 0.25) +
+  ylab("Concentration µg/g") +
+  xlab("Water field availability (log)") +
+  ggtitle("Recovery")
 
-## Plot
-
-com_Plalan_plot <-  (plot_plalan_res |  plot_plalan_rec)+ 
-  plot_annotation(title = "ABA -Plantago lanceolata",
-                  theme = theme(plot.title = element_text(hjust = 0.5)))
-com_Plalan_plot
 
 ## JA
 
@@ -263,85 +268,85 @@ pl_JA_res<-pl_JA%>%
   filter(phase=="Resistance")
 
 # Model 1
-res_null<-lm(log10(concentration)~1,data=pl_JA_res )
-res_water<-lm(log10(concentration)~waterAv_log,data=pl_JA_res)
-res_div<-lm(log10(concentration)~waterAv_log+species_diversity,data=pl_JA_res)
-res_water_div<-lm(log10(concentration)~waterAv_log*species_diversity,
-                  data=pl_JA_res)
+res_null <- lmer(log10(concentration) ~ 1 + (1|chamber), data = pl_JA_res)
+res_water <- lmer(log10(concentration) ~ waterAv_log + (1|chamber), data = pl_JA_res)
+res_div <- lmer(log10(concentration) ~ waterAv_log + species_diversity + (1|chamber), 
+                data = pl_JA_res)
+res_water_div <- lmer(log10(concentration) ~ waterAv_log * species_diversity + (1|chamber),
+                      data = pl_JA_res)
 
 shapiro.test(resid(res_water_div))
 
-anova(res_null,res_water,res_div,res_water_div)
+# Model comparison using likelihood ratio tests (ANOVA)
+anova(res_null, res_water, res_div, res_water_div, test = "LRT")
 
-# Generate predictions
-  pred <- ggpredict(res_water_div,terms = c("waterAv_log","species_diversity"))
+# Generate predictions (marginal effects, excluding random effects)
+pred <- ggpredict(res_water_div, 
+                  terms = c("waterAv_log", "species_diversity"),
+                  type = "fixed")  # fixed effects only
 
-#Model does not show significance, so lines were removed:
-plot_pred_empty <- plot(pred)
-plot_pred_empty$layers <- list()
-
-  #  Create the plot
-  plot_pla_ja_res<- plot_pred_empty +
-    geom_point(data = pl_JA_res,
+# Create the plot
+plot_plalan_res <- plot(pred) +
+  geom_point(data = pl_JA_res,
              aes(x = waterAv_log, 
                  y = concentration,
                  color = species_diversity),
              size = 2,
-    inherit.aes = FALSE) +
-    theme_classic() +
-    theme(legend.position = "top")+
-   ylim(0,0.8)+
-    ylab("Concentration µg/g") +
-    xlab("Water field availability (log)") +
-    ggtitle("Resistance")
+             inherit.aes = FALSE) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  theme(legend.position = "top") +
+  ylim(0, 0.25) +
+  ylab("Concentration µg/g") +
+  xlab("Water field availability (log)") +
+  ggtitle("Resistance")
 
 # Recovery----------------------------------------
 pl_JA_rec<-pl_JA%>%
   filter(phase=="Recovery")
   
-rec_null<-lm(sqrt(concentration)~1,data=pl_JA_rec )
-rec_water<-lm(sqrt(concentration)~waterAv_log,data=pl_JA_rec)
-rec_div<-lm(sqrt(concentration)~waterAv_log+species_diversity,data=pl_JA_rec)
-rec_water_div<-lm(sqrt(concentration)~waterAv_log*species_diversity,
-                  data=pl_JA_rec)
-
-anova(rec_null,rec_water,rec_div,rec_water_div)
+rec_null <- lmer(log10(concentration) ~ 1 + (1|chamber), data = pl_JA_rec)
+rec_water <- lmer(log10(concentration) ~ waterAv_log + (1|chamber), data = pl_JA_rec)
+rec_div <- lmer(log10(concentration) ~ waterAv_log + species_diversity + (1|chamber), 
+                data = pl_JA_rec)
+rec_water_div <- lmer(log10(concentration) ~ waterAv_log * species_diversity + (1|chamber),
+                      data = pl_JA_rec)
 
 shapiro.test(resid(rec_water_div))
 
-# Generate predictions
-  pred <- ggpredict(rec_water_div,terms = c("waterAv_log","species_diversity"))
+# Model comparison using likelihood ratio tests (ANOVA)
+anova(rec_null, rec_water, rec_div, rec_water_div, test = "LRT")
 
+# Generate predictions (marginal effects, excluding random effects)
+pred <- ggpredict(rec_water_div, 
+                  terms = c("waterAv_log", "species_diversity"),
+                  type = "fixed")  # fixed effects only
 
-  # Create the plot
-
- #Model does not show significance, so lines were removed:
-plot_pred_empty <- plot(pred)
-plot_pred_empty$layers <- list()
-
-  #  Create the plot
-  plot_pla_ja_rec<- plot(plot_pred_empty) +
-    geom_point(data = pl_JA_rec,
+# Create the plot
+plot_plalan_rec <- plot(pred) +
+  geom_point(data = pl_JA_rec,
              aes(x = waterAv_log, 
                  y = concentration,
                  color = species_diversity),
              size = 2,
-    inherit.aes = FALSE) +
-    theme_classic() +
-    theme(legend.position = "top")+
-   ylim(0,0.8)+
-    ylab("Concentration µg/g") +
-    xlab("Water field availability (log)") +
-    ggtitle("Recovery")
+             inherit.aes = FALSE) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  theme(legend.position = "top") +
+  ylim(0, 0.25) +
+  ylab("Concentration µg/g") +
+  xlab("Water field availability (log)") +
+  ggtitle("Recovery")
+
 
 ## Plot
 
 com_Plalan_plot <-  (plot_pla_ja_res |  plot_pla_ja_rec)+ 
-  plot_annotation(title = "JA- Plantago lanceolata",
+  plot_annotation(title = "JA - Plantago lanceolata",
                   theme = theme(plot.title = element_text(hjust = 0.5)))
 com_Plalan_plot
 
-## Belis
+## Bellis
 ## ABA
 
 bel_ABA<-data_long%>%
@@ -354,74 +359,82 @@ bel_ABA_res<-bel_ABA%>%
   filter(phase=="Resistance")
 
 # Model 1
-res_null<-lm((concentration)~1,data=bel_ABA_res )
-res_water<-lm((concentration)~waterAv_log,data=bel_ABA_res)
-res_div<-lm((concentration)~waterAv_log+species_diversity,data=bel_ABA_res)
-res_water_div<-lm((concentration)~waterAv_log*species_diversity,
-                  data=bel_ABA_res)
-
-
-anova(res_null,res_water,res_div,res_water_div)
+res_null <- lmer(log10(concentration) ~ 1 + (1|chamber), data = bel_ABA_res)
+res_water <- lmer(log10(concentration) ~ waterAv_log + (1|chamber), data = bel_ABA_res)
+res_div <- lmer(log10(concentration) ~ waterAv_log + species_diversity + (1|chamber), 
+                data = bel_ABA_res)
+res_water_div <- lmer(log10(concentration) ~ waterAv_log * species_diversity + (1|chamber),
+                      data = bel_ABA_res)
 
 shapiro.test(resid(res_water_div))
 
-# Generate predictions
-  pred <- ggpredict(res_water_div,terms = "waterAv_log")
+# Model comparison using likelihood ratio tests (ANOVA)
+anova(res_null, res_water, res_div, res_water_div, test = "LRT")
 
-  # 6. Create the plot
-  plot_belper_res<- plot(pred) +
-    geom_point(data = bel_ABA_res,
+# Generate predictions (marginal effects, excluding random effects)
+pred <- ggpredict(res_water_div, 
+                  terms = c("waterAv_log", "species_diversity"),
+                  type = "fixed")  # fixed effects only
+
+# Create the belot
+belot_belalan_res <- belot(pred) +
+  geom_point(data = bel_ABA_res,
              aes(x = waterAv_log, 
                  y = concentration,
                  color = species_diversity),
              size = 2,
-    inherit.aes = FALSE) +
-    scale_color_manual(values = scales::hue_pal()(length(unique(bel_ABA_res$species_diversity)))) +
-    theme_classic() +
-    theme(legend.position = "top")+
-   ylim(0,0.20)+
-    ylab("Concentration µg/g") +
-    xlab("Water field availability (log)") +
-    ggtitle("Resistance")
+             inherit.aes = FALSE) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  theme(legend.position = "top") +
+  ylim(0, 0.25) +
+  ylab("Concentration µg/g") +
+  xlab("Water field availability (log)") +
+  ggtitle("Resistance")
+
 
 # Recovery----------------------------------------
 bel_ABA_rec<-bel_ABA%>%
   filter(phase=="Recovery")
   
-rec_null<-lm(log10(concentration)~1,data=bel_ABA_rec )
-rec_water<-lm(log10(concentration)~waterAv_log,data=bel_ABA_rec)
-rec_div<-lm(log10(concentration)~waterAv_log+species_diversity,data=bel_ABA_rec)
-rec_water_div<-lm(log10(concentration)~waterAv_log*species_diversity,
-                  data=bel_ABA_rec)
-
-anova(rec_null,rec_water,rec_div,rec_water_div)
+rec_null <- lmer(log10(concentration) ~ 1 + (1|chamber), data = bel_ABA_rec)
+rec_water <- lmer(log10(concentration) ~ waterAv_log + (1|chamber), data = bel_ABA_rec)
+rec_div <- lmer(log10(concentration) ~ waterAv_log + species_diversity + (1|chamber), 
+                data = bel_ABA_rec)
+rec_water_div <- lmer(log10(concentration) ~ waterAv_log * species_diversity + (1|chamber),
+                      data = bel_ABA_rec)
 
 shapiro.test(resid(rec_water_div))
 
-# Generate predictions
-  pred <- ggpredict(rec_water_div,terms = "waterAv_log")
+# Model comparison using likelihood ratio tests (ANOVA)
+anova(rec_null, rec_water, rec_div, rec_water_div, test = "LRT")
 
+# Generate predictions (marginal effects, excluding random effects)
+pred <- ggpredict(rec_water_div, 
+                  terms = c("waterAv_log", "species_diversity"),
+                  type = "fixed")  # fixed effects only
 
-  # 6. Create the plot
-  plot_belper_rec<- plot(pred) +
-    geom_point(data = bel_ABA_rec,
+# Create the belot
+belot_belalan_rec <- belot(pred) +
+  geom_point(data = bel_ABA_rec,
              aes(x = waterAv_log, 
                  y = concentration,
                  color = species_diversity),
              size = 2,
-    inherit.aes = FALSE) +
-    scale_color_manual(values = scales::hue_pal()(length(unique(bel_ABA_rec$species_diversity)))) +
-    theme_classic() +
-    theme(legend.position = "top")+
-   ylim(0,0.20)+
-    ylab("Concentration µg/g") +
-    xlab("Water field availability (log)") +
-    ggtitle("Recovery")
+             inherit.aes = FALSE) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  theme(legend.position = "top") +
+  ylim(0, 0.25) +
+  ylab("Concentration µg/g") +
+  xlab("Water field availability (log)") +
+  ggtitle("Recovery")
+
 
 ## Plot 
 
 com_belper_plot <-  (plot_belper_res |  plot_belper_rec)+ 
-  plot_annotation(title = "ABA -Belis perennis",
+  plot_annotation(title = "ABA - Belis perennis",
                   theme = theme(plot.title = element_text(hjust = 0.5)))
 com_belper_plot
 
@@ -437,72 +450,76 @@ bel_JA_res<-bel_JA%>%
   filter(phase=="Resistance")
 
 # Model 1
-res_null<-lm(log10(concentration)~1,data=bel_JA_res )
-res_water<-lm(log10(concentration)~waterAv_log,data=bel_JA_res)
-res_div<-lm(log10(concentration)~waterAv_log+species_diversity,data=bel_JA_res)
-res_water_div<-lm(log10(concentration)~waterAv_log*species_diversity,
-                  data=bel_JA_res)
-
-
-anova(res_null,res_water,res_div,res_water_div)
+res_null <- lmer(log10(concentration) ~ 1 + (1|chamber), data = bel_JA_res)
+res_water <- lmer(log10(concentration) ~ waterAv_log + (1|chamber), data = bel_JA_res)
+res_div <- lmer(log10(concentration) ~ waterAv_log + species_diversity + (1|chamber), 
+                data = bel_JA_res)
+res_water_div <- lmer(log10(concentration) ~ waterAv_log * species_diversity + (1|chamber),
+                      data = bel_JA_res)
 
 shapiro.test(resid(res_water_div))
 
-# Generate predictions
-  pred <- ggpredict(res_water_div,terms = c("waterAv_log","species_diversity"))
+# Model comparison using likelihood ratio tests (ANOVA)
+anova(res_null, res_water, res_div, res_water_div, test = "LRT")
 
- #Model does not show significance, so lines were removed:
-plot_pred_empty <- plot(pred)
-plot_pred_empty$layers <- list()
+# Generate predictions (marginal effects, excluding random effects)
+pred <- ggpredict(res_water_div, 
+                  terms = c("waterAv_log", "species_diversity"),
+                  type = "fixed")  # fixed effects only
 
-  #  Create the plot
-  plot_bel_ja_res<- plot_pred_empty +
-    geom_point(data = bel_JA_res,
+# Create the belot
+belot_belalan_res <- belot(pred) +
+  geom_point(data = bel_JA_res,
              aes(x = waterAv_log, 
                  y = concentration,
                  color = species_diversity),
              size = 2,
-    inherit.aes = FALSE) +
-    theme_classic() +
-    theme(legend.position = "top")+
-   ylim(0,0.9)+
-    ylab("Concentration µg/g") +
-    xlab("Water field availability (log)") +
-    ggtitle("Resistance")
+             inherit.aes = FALSE) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  theme(legend.position = "top") +
+  ylim(0, 0.25) +
+  ylab("Concentration µg/g") +
+  xlab("Water field availability (log)") +
+  ggtitle("Resistance")
+
 
 # Recovery----------------------------------------
 bel_JA_rec<-bel_JA%>%
   filter(phase=="Recovery")
   
-rec_null<-lm(log10(concentration)~1,data=bel_JA_rec )
-rec_water<-lm(log10(concentration)~waterAv_log,data=bel_JA_rec)
-rec_div<-lm(log10(concentration)~waterAv_log+species_diversity,data=bel_JA_rec)
-rec_water_div<-lm(log10(concentration)~waterAv_log*species_diversity,
-                  data=bel_JA_rec)
-
-anova(rec_null,rec_water,rec_div,rec_water_div)
+rec_null <- lmer(log10(concentration) ~ 1 + (1|chamber), data = bel_JA_rec)
+rec_water <- lmer(log10(concentration) ~ waterAv_log + (1|chamber), data = bel_JA_rec)
+rec_div <- lmer(log10(concentration) ~ waterAv_log + species_diversity + (1|chamber), 
+                data = bel_JA_rec)
+rec_water_div <- lmer(log10(concentration) ~ waterAv_log * species_diversity + (1|chamber),
+                      data = bel_JA_rec)
 
 shapiro.test(resid(rec_water_div))
 
-# Generate predictions
-  pred <- ggpredict(rec_water_div,terms = c("waterAv_log","species_diversity"))
+# Model comparison using likelihood ratio tests (ANOVA)
+anova(rec_null, rec_water, rec_div, rec_water_div, test = "LRT")
 
- # Create the plot
+# Generate predictions (marginal effects, excluding random effects)
+pred <- ggpredict(rec_water_div, 
+                  terms = c("waterAv_log", "species_diversity"),
+                  type = "fixed")  # fixed effects only
 
-  #  Create the plot
-  plot_bel_ja_rec<- plot(pred) +
-    geom_point(data = bel_JA_rec,
+# Create the belot
+belot_belalan_rec <- belot(pred) +
+  geom_point(data = bel_JA_rec,
              aes(x = waterAv_log, 
                  y = concentration,
                  color = species_diversity),
              size = 2,
-    inherit.aes = FALSE) +
-        theme_classic() +
-    theme(legend.position = "top")+
-   ylim(0,0.9)+
-    ylab("Concentration µg/g") +
-    xlab("Water field availability (log)") +
-    ggtitle("Recovery")
+             inherit.aes = FALSE) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  theme(legend.position = "top") +
+  ylim(0, 0.25) +
+  ylab("Concentration µg/g") +
+  xlab("Water field availability (log)") +
+  ggtitle("Recovery")
 
 ## Plot
 
