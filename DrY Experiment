@@ -12,7 +12,7 @@ library(lme4)
 library(ggeffects)
 library(lmerTest)
 
-## Data - 完整的修正版本
+## Data 
 data <- read_csv2(
   here("H:/PhD_Arbeit/WP1/Thesis/DrY/Data", "DrY_ID_AS_PH_BM_IG.csv"),
   show_col_types = FALSE,
@@ -21,8 +21,7 @@ data <- read_csv2(
   clean_names() %>%
   # 先将所有化合物列转换为数值型
   mutate(across(ends_with("_g_g"), ~ as.numeric(.))) %>%
-# Create chamber variable if not already present
-  mutate(chamber = factor(paste(cabin, desk, sep = "_")))%>%
+
   # set factors
   mutate(
     id_greenhouse = as.factor(id_greenhouse),
@@ -32,7 +31,8 @@ data <- read_csv2(
     species_richness = as.factor(species_richness),
     pla_lan = as.factor(pla_lan),
     bel_per = as.factor(bel_per),
-    harvest = as.factor(ernte)
+    harvest = as.factor(ernte),
+    chamber = as.factor(chamber)
   ) %>%
   # recode drought and log transform
   mutate(
@@ -165,63 +165,109 @@ print(com_belper_plot)
 
 
 ## 3. 回归分析示例 - Plantago ABA
-cat("\n=== Plantago ABA 回归分析 ===\n")
-## Regressions
-Plantago
-ABA
-
-pl_ABA<-data_long%>%
-  filter(pla_lan==1,
-         compound=="aba")
-
+pl_ABA <- data_long %>%
+  filter(pla_lan == 1, compound == "aba")
 
 # Resistance----------------------------------------
-pl_ABA_res<-pl_ABA%>%
-  filter(phase=="Resistance")
+pl_ABA_res <- pl_ABA %>%
+  filter(phase == "Resistance")
 
-if (nrow(pl_ABA_res) > 10) {
-  # 添加小的常数避免 log(0)
+# 添加if语句的结束括号
+if (nrow(pl_ABA_res) > 0) {
+  # 注意：这里创建了concentration_adj但模型中未使用
   pl_ABA_res <- pl_ABA_res %>%
     mutate(concentration_adj = concentration + 1e-10)
+}  # 这里添加了结束括号
 
-# Model 1
-res_null <- lmer(log10(concentration) ~ 1 + (1|chamber), data = pl_JA_res)
-res_water <- lmer(log10(concentration) ~ waterAv_log + (1|chamber), data = pl_JA_res)
+# Model 1 - 使用原始浓度
+res_null <- lmer(log10(concentration) ~ 1 + (1|chamber), data = pl_ABA_res)
+res_water <- lmer(log10(concentration) ~ waterAv_log + (1|chamber), data = pl_ABA_res)
 res_div <- lmer(log10(concentration) ~ waterAv_log + species_diversity + (1|chamber), 
-                data = pl_JA_res)
+                data = pl_ABA_res)
 res_water_div <- lmer(log10(concentration) ~ waterAv_log * species_diversity + (1|chamber),
-                      data = pl_JA_res)
+                      data = pl_ABA_res)
 
 shapiro.test(resid(res_water_div))
+model_comparison <- anova(res_null, res_water, res_div, res_water_div, test = "LRT")
+print(model_comparison)
 
-# Model comparison using likelihood ratio tests (ANOVA)
-anova(res_null, res_water, res_div, res_water_div, test = "LRT")
+# 获取每个模型与null比较的p值
+water_vs_null <- anova(res_null, res_water, test = "LRT")
+div_vs_null <- anova(res_null, res_div, test = "LRT")
+water_div_vs_null <- anova(res_null, res_water_div, test = "LRT")
 
-# Generate predictions (marginal effects, excluding random effects)
+cat("\n=== 单独模型比较 (每个模型都与null模型比较) ===\n")
+cat("res_water vs null:\n")
+print(water_vs_null)
+cat("\nres_div vs null:\n")
+print(div_vs_null)
+cat("\nres_water_div vs null:\n")
+print(water_div_vs_null)
+
+# 提取p值
+p_water <- water_vs_null$`Pr(>Chisq)`[2]
+p_div <- div_vs_null$`Pr(>Chisq)`[2]
+p_water_div <- water_div_vs_null$`Pr(>Chisq)`[2]
+
+# 转换为星号表示
+get_stars <- function(p) {
+  if (is.na(p)) return("")
+  if (p < 0.001) return("***")
+  if (p < 0.01) return("**")
+  if (p < 0.05) return("*")
+  return("")
+}
+
+stars_water <- get_stars(p_water)
+stars_div <- get_stars(p_div)
+stars_water_div <- get_stars(p_water_div)
+
+# 打印所有p值
+cat("\n=== Resistance阶段所有模型与null比较的p值 ===\n")
+cat("res_water vs null: p =", format(p_water, scientific = TRUE, digits = 3), stars_water, "\n")
+cat("res_div vs null: p =", format(p_div, scientific = TRUE, digits = 3), stars_div, "\n")
+cat("res_water_div vs null: p =", format(p_water_div, scientific = TRUE, digits = 3), stars_water_div, "\n")
+
+
 pred <- ggpredict(res_water_div, 
                   terms = c("waterAv_log", "species_diversity"),
-                  type = "fixed")  # fixed effects only
+                  type = "fixed")
 
-# Create the plot
-plot_plalan_res <- plot(pred) +
-  geom_point(data = pl_JA_res,
+# 创建图表 - 移除趋势线，添加注释
+
+plot_pla_aba_res <- plot(pred) +
+  geom_point(data = pl_ABA_res,
              aes(x = waterAv_log, 
                  y = concentration,
-                 color = species_diversity),
-             size = 2,
+                 color = as.factor(species_diversity)),
+             size = 3,
+             alpha = 0.7,
              inherit.aes = FALSE) +
-  geom_line(linewidth = 1) +
+  geom_line(linewidth = 1) +  # Resistance阶段保留趋势线
   theme_classic() +
-  theme(legend.position = "top") +
-  ylim(0, 0.25) +
+  theme(legend.position = "top",
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5, size = 10, color = "darkgray"),
+        plot.caption = element_text(hjust = 0.5, size = 9, color = "gray")) +
+  scale_color_discrete(name = "Species Diversity") +
   ylab("Concentration µg/g") +
-  xlab("Water field availability (log)") +
-  ggtitle("Resistance")
+  xlab("Water field availability (log)") +ggtitle("Resistance",
+          subtitle = paste("Model comparison: water", stars_water, 
+                           ", div", stars_div, 
+                           ", water×div", stars_water_div)) +
+  # 可选：添加其他注释
+  labs(caption = paste("p-values (vs null): water =", 
+                       format(p_water, scientific = TRUE, digits = 2),
+                       ", div =", 
+                       format(p_div, scientific = TRUE, digits = 2),
+                       ", water×div =",
+                       format(p_water_div, scientific = TRUE, digits = 2)))
+
 
 # Recovery----------------------------------------
-pl_ABA_rec<-pl_ABA%>%
-  filter(phase=="Recovery")
-  
+pl_ABA_rec <- pl_ABA %>%
+  filter(phase == "Recovery")
+
 rec_null <- lmer(log10(concentration) ~ 1 + (1|chamber), data = pl_ABA_rec)
 rec_water <- lmer(log10(concentration) ~ waterAv_log + (1|chamber), data = pl_ABA_rec)
 rec_div <- lmer(log10(concentration) ~ waterAv_log + species_diversity + (1|chamber), 
@@ -230,44 +276,93 @@ rec_water_div <- lmer(log10(concentration) ~ waterAv_log * species_diversity + (
                       data = pl_ABA_rec)
 
 shapiro.test(resid(rec_water_div))
+model_comparison_rec <- anova(rec_null, rec_water, rec_div, rec_water_div, test = "LRT")
 
-# Model comparison using likelihood ratio tests (ANOVA)
-anova(rec_null, rec_water, rec_div, rec_water_div, test = "LRT")
+cat("\n=== Recovery阶段模型比较结果 ===\n")
+print(model_comparison_rec)
 
-# Generate predictions (marginal effects, excluding random effects)
-pred <- ggpredict(rec_water_div, 
-                  terms = c("waterAv_log", "species_diversity"),
-                  type = "fixed")  # fixed effects only
+# 获取每个模型与null比较的p值
+rec_water_vs_null <- anova(rec_null, rec_water, test = "LRT")
+rec_div_vs_null <- anova(rec_null, rec_div, test = "LRT")
+rec_water_div_vs_null <- anova(rec_null, rec_water_div, test = "LRT")
 
-# Create the plot
-plot_plalan_rec <- plot(pred) +
+cat("\n=== Recovery阶段单独模型比较 (每个模型都与null模型比较) ===\n")
+cat("rec_water vs null:\n")
+print(rec_water_vs_null)
+cat("\nrec_div vs null:\n")
+print(rec_div_vs_null)
+cat("\nrec_water_div vs null:\n")
+print(rec_water_div_vs_null)
+
+# 提取p值
+p_water_rec <- rec_water_vs_null$`Pr(>Chisq)`[2]
+p_div_rec <- rec_div_vs_null$`Pr(>Chisq)`[2]
+p_water_div_rec <- rec_water_div_vs_null$`Pr(>Chisq)`[2]
+
+# 转换为星号表示
+stars_water_rec <- get_stars(p_water_rec)
+stars_div_rec <- get_stars(p_div_rec)
+stars_water_div_rec <- get_stars(p_water_div_rec)
+
+# 打印所有p值
+cat("\n=== Recovery阶段所有模型与null比较的p值 ===\n")
+cat("rec_water vs null: p =", format(p_water_rec, scientific = TRUE, digits = 3), stars_water_rec, "\n")
+cat("rec_div vs null: p =", format(p_div_rec, scientific = TRUE, digits = 3), stars_div_rec, "\n")
+cat("rec_water_div vs null: p =", format(p_water_div_rec, scientific = TRUE, digits = 3), stars_water_div_rec, "\n")
+
+# 生成预测
+pred_rec <- ggpredict(rec_water_div, 
+                      terms = c("waterAv_log", "species_diversity"),
+                      type = "fixed")
+
+# 创建图表 - 移除趋势线，添加注释
+plot_pla_aba_rec <- ggplot() +
+  # 原始数据点
   geom_point(data = pl_ABA_rec,
              aes(x = waterAv_log, 
                  y = concentration,
-                 color = species_diversity),
-             size = 2,
-             inherit.aes = FALSE) +
+                 color = as.factor(species_diversity)),
+             size = 3,
+             alpha = 0.7) +
+
+# 移除趋势线
   geom_line(linewidth = 1) +
   theme_classic() +
-  theme(legend.position = "top") +
-  ylim(0, 0.25) +
+  theme(legend.position = "top",
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5, size = 10, color = "darkgray"),
+        plot.caption = element_text(hjust = 0.5, size = 9, color = "gray")) +
+  scale_color_discrete(name = "Species Diversity") +
   ylab("Concentration µg/g") +
   xlab("Water field availability (log)") +
+  # 主标题和注释 - 现在包含三个模型
   ggtitle("Recovery")
+
+
+com_Plalan_plot <- (plot_pla_aba_res | plot_pla_aba_rec) + 
+  plot_annotation(title = "ABA - Plantago lanceolata",
+                  theme = theme(plot.title = element_text(hjust = 0.5)))
+
+print(com_Plalan_plot)
 
 
 ## JA
 
-pl_JA<-data_long%>%
-  filter(pla_lan==1,
-         compound=="ja")
-
+pl_JA <- data_long %>%
+  filter(pla_lan == 1, compound == "ja")
 
 # Resistance----------------------------------------
-pl_JA_res<-pl_JA%>%
-  filter(phase=="Resistance")
+pl_JA_res <- pl_JA %>%
+  filter(phase == "Resistance")
 
-# Model 1
+# 添加if语句的结束括号
+if (nrow(pl_JA_res) > 0) {
+  # 注意：这里创建了concentration_adj但模型中未使用
+  pl_JA_res <- pl_JA_res %>%
+    mutate(concentration_adj = concentration + 1e-10)
+}  # 这里添加了结束括号
+
+# Model 1 - 使用原始浓度
 res_null <- lmer(log10(concentration) ~ 1 + (1|chamber), data = pl_JA_res)
 res_water <- lmer(log10(concentration) ~ waterAv_log + (1|chamber), data = pl_JA_res)
 res_div <- lmer(log10(concentration) ~ waterAv_log + species_diversity + (1|chamber), 
@@ -276,35 +371,83 @@ res_water_div <- lmer(log10(concentration) ~ waterAv_log * species_diversity + (
                       data = pl_JA_res)
 
 shapiro.test(resid(res_water_div))
+model_comparison <- anova(res_null, res_water, res_div, res_water_div, test = "LRT")
 
-# Model comparison using likelihood ratio tests (ANOVA)
-anova(res_null, res_water, res_div, res_water_div, test = "LRT")
+# 打印模型比较结果
+cat("=== Resistance阶段模型比较结果 ===\n")
+print(model_comparison)
 
-# Generate predictions (marginal effects, excluding random effects)
+# 获取每个模型与null比较的p值
+water_vs_null <- anova(res_null, res_water, test = "LRT")
+div_vs_null <- anova(res_null, res_div, test = "LRT")
+water_div_vs_null <- anova(res_null, res_water_div, test = "LRT")
+
+cat("\n=== 单独模型比较 (每个模型都与null模型比较) ===\n")
+cat("res_water vs null:\n")
+print(water_vs_null)
+cat("\nres_div vs null:\n")
+print(div_vs_null)
+cat("\nres_water_div vs null:\n")
+print(water_div_vs_null)
+
+# 提取p值
+p_water <- water_vs_null$`Pr(>Chisq)`[2]
+p_div <- div_vs_null$`Pr(>Chisq)`[2]
+p_water_div <- water_div_vs_null$`Pr(>Chisq)`[2]
+
+# 转换为星号表示
+get_stars <- function(p) {
+  if (is.na(p)) return("")
+  if (p < 0.001) return("***")
+  if (p < 0.01) return("**")
+  if (p < 0.05) return("*")
+  return("")
+}
+
+stars_water <- get_stars(p_water)
+stars_div <- get_stars(p_div)
+stars_water_div <- get_stars(p_water_div)
+
+# 打印所有p值
+cat("\n=== Resistance阶段所有模型与null比较的p值 ===\n")
+cat("res_water vs null: p =", format(p_water, scientific = TRUE, digits = 3), stars_water, "\n")
+cat("res_div vs null: p =", format(p_div, scientific = TRUE, digits = 3), stars_div, "\n")
+cat("res_water_div vs null: p =", format(p_water_div, scientific = TRUE, digits = 3), stars_water_div, "\n")
+
+# 生成预测
 pred <- ggpredict(res_water_div, 
                   terms = c("waterAv_log", "species_diversity"),
-                  type = "fixed")  # fixed effects only
+                  type = "fixed")
 
-# Create the plot
-plot_plalan_res <- plot(pred) +
+plot_pla_ja_res <- ggplot() +
+  # 原始数据点
   geom_point(data = pl_JA_res,
              aes(x = waterAv_log, 
                  y = concentration,
-                 color = species_diversity),
-             size = 2,
-             inherit.aes = FALSE) +
-  geom_line(linewidth = 1) +
+                 color = as.factor(species_diversity)),
+             size = 3,
+             alpha = 0.7) +
+  # 不显示趋势线
+  # geom_line(linewidth = 1) +
   theme_classic() +
-  theme(legend.position = "top") +
-  ylim(0, 0.25) +
+  theme(legend.position = "top",
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5, size = 10, color = "darkgray"),
+        plot.caption = element_text(hjust = 0.5, size = 9, color = "gray")) +
+  scale_color_discrete(name = "Species Diversity") +
   ylab("Concentration µg/g") +
   xlab("Water field availability (log)") +
+
+  # 主标题和注释 - 现在包含三个模型
   ggtitle("Resistance")
 
+
 # Recovery----------------------------------------
-pl_JA_rec<-pl_JA%>%
-  filter(phase=="Recovery")
-  
+pl_JA <- data_long %>%
+  filter(pla_lan == 1, compound == "ja")
+pl_JA_rec <- pl_JA %>%
+  filter(phase == "Recovery")
+
 rec_null <- lmer(log10(concentration) ~ 1 + (1|chamber), data = pl_JA_rec)
 rec_water <- lmer(log10(concentration) ~ waterAv_log + (1|chamber), data = pl_JA_rec)
 rec_div <- lmer(log10(concentration) ~ waterAv_log + species_diversity + (1|chamber), 
@@ -313,29 +456,66 @@ rec_water_div <- lmer(log10(concentration) ~ waterAv_log * species_diversity + (
                       data = pl_JA_rec)
 
 shapiro.test(resid(rec_water_div))
+model_comparison_rec <- anova(rec_null, rec_water, rec_div, rec_water_div, test = "LRT")
 
-# Model comparison using likelihood ratio tests (ANOVA)
-anova(rec_null, rec_water, rec_div, rec_water_div, test = "LRT")
+cat("\n=== Recovery阶段模型比较结果 ===\n")
+print(model_comparison_rec)
 
-# Generate predictions (marginal effects, excluding random effects)
-pred <- ggpredict(rec_water_div, 
-                  terms = c("waterAv_log", "species_diversity"),
-                  type = "fixed")  # fixed effects only
+# 获取每个模型与null比较的p值
+rec_water_vs_null <- anova(rec_null, rec_water, test = "LRT")
+rec_div_vs_null <- anova(rec_null, rec_div, test = "LRT")
+rec_water_div_vs_null <- anova(rec_null, rec_water_div, test = "LRT")
 
-# Create the plot
-plot_plalan_rec <- plot(pred) +
+cat("\n=== Recovery阶段单独模型比较 (每个模型都与null模型比较) ===\n")
+cat("rec_water vs null:\n")
+print(rec_water_vs_null)
+cat("\nrec_div vs null:\n")
+print(rec_div_vs_null)
+cat("\nrec_water_div vs null:\n")
+print(rec_water_div_vs_null)
+
+# 提取p值
+p_water_rec <- rec_water_vs_null$`Pr(>Chisq)`[2]
+p_div_rec <- rec_div_vs_null$`Pr(>Chisq)`[2]
+p_water_div_rec <- rec_water_div_vs_null$`Pr(>Chisq)`[2]
+
+# 转换为星号表示
+stars_water_rec <- get_stars(p_water_rec)
+stars_div_rec <- get_stars(p_div_rec)
+stars_water_div_rec <- get_stars(p_water_div_rec)
+
+# 打印所有p值
+cat("\n=== Recovery阶段所有模型与null比较的p值 ===\n")
+cat("rec_water vs null: p =", format(p_water_rec, scientific = TRUE, digits = 3), stars_water_rec, "\n")
+cat("rec_div vs null: p =", format(p_div_rec, scientific = TRUE, digits = 3), stars_div_rec, "\n")
+cat("rec_water_div vs null: p =", format(p_water_div_rec, scientific = TRUE, digits = 3), stars_water_div_rec, "\n")
+
+# 生成预测
+pred_rec <- ggpredict(rec_water_div, 
+                      terms = c("waterAv_log", "species_diversity"),
+                      type = "fixed")
+
+# 创建图表 - 移除趋势线，添加注释
+plot_pla_ja_rec <- ggplot() +
+  # 原始数据点
   geom_point(data = pl_JA_rec,
              aes(x = waterAv_log, 
                  y = concentration,
-                 color = species_diversity),
-             size = 2,
-             inherit.aes = FALSE) +
+                 color = as.factor(species_diversity)),
+             size = 3,
+             alpha = 0.7) +
+
+# 移除趋势线
   geom_line(linewidth = 1) +
   theme_classic() +
-  theme(legend.position = "top") +
-  ylim(0, 0.25) +
+  theme(legend.position = "top",
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5, size = 10, color = "darkgray"),
+        plot.caption = element_text(hjust = 0.5, size = 9, color = "gray")) +
+  scale_color_discrete(name = "Species Diversity") +
   ylab("Concentration µg/g") +
   xlab("Water field availability (log)") +
+  # 主标题和注释 - 现在包含三个模型
   ggtitle("Recovery")
 
 
@@ -344,7 +524,7 @@ plot_plalan_rec <- plot(pred) +
 com_Plalan_plot <-  (plot_pla_ja_res |  plot_pla_ja_rec)+ 
   plot_annotation(title = "JA - Plantago lanceolata",
                   theme = theme(plot.title = element_text(hjust = 0.5)))
-com_Plalan_plot
+print(com_Plalan_plot)
 
 ## Bellis
 ## ABA
@@ -355,10 +535,21 @@ bel_ABA<-data_long%>%
 
 
 # Resistance----------------------------------------
-bel_ABA_res<-bel_ABA%>%
-  filter(phase=="Resistance")
+bel_ABA <- data_long %>%
+  filter(bel_per == 1, compound == "aba")
 
-# Model 1
+# Resistance----------------------------------------
+bel_ABA_res <- bel_ABA %>%
+  filter(phase == "Resistance")
+
+# 添加if语句的结束括号
+if (nrow(bel_ABA_res) > 0) {
+  # 注意：这里创建了concentration_adj但模型中未使用
+  bel_ABA_res <- bel_ABA_res %>%
+    mutate(concentration_adj = concentration + 1e-10)
+}  # 这里添加了结束括号
+
+# Model 1 - 使用原始浓度
 res_null <- lmer(log10(concentration) ~ 1 + (1|chamber), data = bel_ABA_res)
 res_water <- lmer(log10(concentration) ~ waterAv_log + (1|chamber), data = bel_ABA_res)
 res_div <- lmer(log10(concentration) ~ waterAv_log + species_diversity + (1|chamber), 
@@ -367,36 +558,94 @@ res_water_div <- lmer(log10(concentration) ~ waterAv_log * species_diversity + (
                       data = bel_ABA_res)
 
 shapiro.test(resid(res_water_div))
+model_comparison <- anova(res_null, res_water, res_div, res_water_div, test = "LRT")
 
-# Model comparison using likelihood ratio tests (ANOVA)
-anova(res_null, res_water, res_div, res_water_div, test = "LRT")
+# 打印模型比较结果
+cat("=== Resistance阶段模型比较结果 ===\n")
+print(model_comparison)
 
-# Generate predictions (marginal effects, excluding random effects)
+# 获取每个模型与null比较的p值
+water_vs_null <- anova(res_null, res_water, test = "LRT")
+div_vs_null <- anova(res_null, res_div, test = "LRT")
+water_div_vs_null <- anova(res_null, res_water_div, test = "LRT")
+
+cat("\n=== 单独模型比较 (每个模型都与null模型比较) ===\n")
+cat("res_water vs null:\n")
+print(water_vs_null)
+cat("\nres_div vs null:\n")
+print(div_vs_null)
+cat("\nres_water_div vs null:\n")
+print(water_div_vs_null)
+
+# 提取p值
+p_water <- water_vs_null$`Pr(>Chisq)`[2]
+p_div <- div_vs_null$`Pr(>Chisq)`[2]
+p_water_div <- water_div_vs_null$`Pr(>Chisq)`[2]
+
+# 转换为星号表示
+get_stars <- function(p) {
+  if (is.na(p)) return("")
+  if (p < 0.001) return("***")
+  if (p < 0.01) return("**")
+  if (p < 0.05) return("*")
+  return("")
+}
+
+stars_water <- get_stars(p_water)
+stars_div <- get_stars(p_div)
+stars_water_div <- get_stars(p_water_div)
+
+# 打印所有p值
+cat("\n=== Resistance阶段所有模型与null比较的p值 ===\n")
+cat("res_water vs null: p =", format(p_water, scientific = TRUE, digits = 3), stars_water, "\n")
+cat("res_div vs null: p =", format(p_div, scientific = TRUE, digits = 3), stars_div, "\n")
+cat("res_water_div vs null: p =", format(p_water_div, scientific = TRUE, digits = 3), stars_water_div, "\n")
+
+# 生成预测
 pred <- ggpredict(res_water_div, 
                   terms = c("waterAv_log", "species_diversity"),
-                  type = "fixed")  # fixed effects only
+                  type = "fixed")
 
-# Create the belot
-belot_belalan_res <- belot(pred) +
+# 创建Resistance阶段图表 - 保留趋势线
+plot_bel_aba_res <- ggplot() +
+  # 原始数据点
   geom_point(data = bel_ABA_res,
              aes(x = waterAv_log, 
                  y = concentration,
-                 color = species_diversity),
-             size = 2,
-             inherit.aes = FALSE) +
-  geom_line(linewidth = 1) +
+                 color = as.factor(species_diversity)),
+             size = 3,
+             alpha = 0.7) +
+  # 注释掉趋势线，Recovery阶段不显示趋势线
+  # geom_line(linewidth = 1) +
   theme_classic() +
-  theme(legend.position = "top") +
-  ylim(0, 0.25) +
+  theme(legend.position = "top",
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5, size = 10, color = "darkgray"),
+        plot.caption = element_text(hjust = 0.5, size = 9, color = "gray")) +
+  scale_color_discrete(name = "Species Diversity") +
   ylab("Concentration µg/g") +
   xlab("Water field availability (log)") +
+  # 主标题和注释 - 现在包含三个模型
   ggtitle("Resistance")
 
 
+
 # Recovery----------------------------------------
-bel_ABA_rec<-bel_ABA%>%
-  filter(phase=="Recovery")
-  
+bel_ABA <- data_long %>%
+  filter(bel_per == 1, compound == "aba")
+
+# Recovery----------------------------------------
+bel_ABA_rec <- bel_ABA %>%
+  filter(phase == "Recovery")
+
+# 添加if语句的结束括号
+if (nrow(bel_ABA_rec) > 0) {
+  # 注意：这里创建了concentration_adj但模型中未使用
+  bel_ABA_rec <- bel_ABA_rec %>%
+    mutate(concentration_adj = concentration + 1e-10)
+}  # 这里添加了结束括号
+
+# Model 1 - 使用原始浓度
 rec_null <- lmer(log10(concentration) ~ 1 + (1|chamber), data = bel_ABA_rec)
 rec_water <- lmer(log10(concentration) ~ waterAv_log + (1|chamber), data = bel_ABA_rec)
 rec_div <- lmer(log10(concentration) ~ waterAv_log + species_diversity + (1|chamber), 
@@ -405,51 +654,108 @@ rec_water_div <- lmer(log10(concentration) ~ waterAv_log * species_diversity + (
                       data = bel_ABA_rec)
 
 shapiro.test(resid(rec_water_div))
+model_comparison <- anova(rec_null, rec_water, rec_div, rec_water_div, test = "LRT")
 
-# Model comparison using likelihood ratio tests (ANOVA)
-anova(rec_null, rec_water, rec_div, rec_water_div, test = "LRT")
+# 打印模型比较结果
+cat("=== Recovery阶段模型比较结果 ===\n")
+print(model_comparison)
 
-# Generate predictions (marginal effects, excluding random effects)
+# 获取每个模型与null比较的p值
+water_vs_null <- anova(rec_null, rec_water, test = "LRT")
+div_vs_null <- anova(rec_null, rec_div, test = "LRT")
+water_div_vs_null <- anova(rec_null, rec_water_div, test = "LRT")
+
+cat("\n=== 单独模型比较 (每个模型都与null模型比较) ===\n")
+cat("rec_water vs null:\n")
+print(water_vs_null)
+cat("\nrec_div vs null:\n")
+print(div_vs_null)
+cat("\nrec_water_div vs null:\n")
+print(water_div_vs_null)
+
+# 提取p值
+p_water <- water_vs_null$`Pr(>Chisq)`[2]
+p_div <- div_vs_null$`Pr(>Chisq)`[2]
+p_water_div <- water_div_vs_null$`Pr(>Chisq)`[2]
+
+# 转换为星号表示
+get_stars <- function(p) {
+  if (is.na(p)) return("")
+  if (p < 0.001) return("***")
+  if (p < 0.01) return("**")
+  if (p < 0.05) return("*")
+  return("")
+}
+
+stars_water <- get_stars(p_water)
+stars_div <- get_stars(p_div)
+stars_water_div <- get_stars(p_water_div)
+
+# 打印所有p值
+cat("\n=== Recovery阶段所有模型与null比较的p值 ===\n")
+cat("rec_water vs null: p =", format(p_water, scientific = TRUE, digits = 3), stars_water, "\n")
+cat("rec_div vs null: p =", format(p_div, scientific = TRUE, digits = 3), stars_div, "\n")
+cat("rec_water_div vs null: p =", format(p_water_div, scientific = TRUE, digits = 3), stars_water_div, "\n")
+
+# 生成预测
 pred <- ggpredict(rec_water_div, 
                   terms = c("waterAv_log", "species_diversity"),
-                  type = "fixed")  # fixed effects only
+                  type = "fixed")
 
-# Create the belot
-belot_belalan_rec <- belot(pred) +
+# 创建Recovery阶段图表 - 保留趋势线
+plot_bel_aba_rec <- plot(pred) +
   geom_point(data = bel_ABA_rec,
              aes(x = waterAv_log, 
                  y = concentration,
-                 color = species_diversity),
-             size = 2,
+                 color = as.factor(species_diversity)),
+             size = 3,
+             alpha = 0.7,
              inherit.aes = FALSE) +
-  geom_line(linewidth = 1) +
+  geom_line(linewidth = 1) +  # Recovery阶段保留趋势线
   theme_classic() +
-  theme(legend.position = "top") +
-  ylim(0, 0.25) +
+  theme(legend.position = "top",
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5, size = 10, color = "darkgray"),
+        plot.caption = element_text(hjust = 0.5, size = 9, color = "gray")) +
+  scale_color_discrete(name = "Species Diversity") +
   ylab("Concentration µg/g") +
   xlab("Water field availability (log)") +
-  ggtitle("Recovery")
-
+  # 主标题和注释 - 现在包含三个模型
+  ggtitle("Recovery",
+          subtitle = paste("Model comparison: water", stars_water)) +
+  # 可选：添加其他注释
+  labs(caption = paste("p-values (vs null): water =", 
+                       format(p_water, scientific = TRUE, digits = 2),
+                       ", div =", 
+                       format(p_div, scientific = TRUE, digits = 2),
+                       ", water×div =",
+                       format(p_water_div, scientific = TRUE, digits = 2)))
 
 ## Plot 
 
-com_belper_plot <-  (plot_belper_res |  plot_belper_rec)+ 
-  plot_annotation(title = "ABA - Belis perennis",
+com_belper_plot <-  (plot_bel_aba_res |  plot_bel_aba_rec)+ 
+  plot_annotation(title = "ABA - Bellis perennis",
                   theme = theme(plot.title = element_text(hjust = 0.5)))
 com_belper_plot
 
-JA
 
-bel_JA<-data_long%>%
-  filter(bel_per==1,
-         compound=="ja")
 
+## JA
+bel_JA <- data_long %>%
+  filter(bel_per == 1, compound == "ja")
 
 # Resistance----------------------------------------
-bel_JA_res<-bel_JA%>%
-  filter(phase=="Resistance")
+bel_JA_res <- bel_JA %>%
+  filter(phase == "Resistance")
 
-# Model 1
+# 添加if语句的结束括号
+if (nrow(bel_JA_res) > 0) {
+  # 注意：这里创建了concentration_adj但模型中未使用
+  bel_JA_res <- bel_JA_res %>%
+    mutate(concentration_adj = concentration + 1e-10)
+}  # 这里添加了结束括号
+
+# Model 1 - 使用原始浓度
 res_null <- lmer(log10(concentration) ~ 1 + (1|chamber), data = bel_JA_res)
 res_water <- lmer(log10(concentration) ~ waterAv_log + (1|chamber), data = bel_JA_res)
 res_div <- lmer(log10(concentration) ~ waterAv_log + species_diversity + (1|chamber), 
@@ -458,36 +764,94 @@ res_water_div <- lmer(log10(concentration) ~ waterAv_log * species_diversity + (
                       data = bel_JA_res)
 
 shapiro.test(resid(res_water_div))
+model_comparison <- anova(res_null, res_water, res_div, res_water_div, test = "LRT")
 
-# Model comparison using likelihood ratio tests (ANOVA)
-anova(res_null, res_water, res_div, res_water_div, test = "LRT")
+# 打印模型比较结果
+cat("=== Resistance阶段模型比较结果 ===\n")
+print(model_comparison)
 
-# Generate predictions (marginal effects, excluding random effects)
+# 获取每个模型与null比较的p值
+water_vs_null <- anova(res_null, res_water, test = "LRT")
+div_vs_null <- anova(res_null, res_div, test = "LRT")
+water_div_vs_null <- anova(res_null, res_water_div, test = "LRT")
+
+cat("\n=== 单独模型比较 (每个模型都与null模型比较) ===\n")
+cat("res_water vs null:\n")
+print(water_vs_null)
+cat("\nres_div vs null:\n")
+print(div_vs_null)
+cat("\nres_water_div vs null:\n")
+print(water_div_vs_null)
+
+# 提取p值
+p_water <- water_vs_null$`Pr(>Chisq)`[2]
+p_div <- div_vs_null$`Pr(>Chisq)`[2]
+p_water_div <- water_div_vs_null$`Pr(>Chisq)`[2]
+
+# 转换为星号表示
+get_stars <- function(p) {
+  if (is.na(p)) return("")
+  if (p < 0.001) return("***")
+  if (p < 0.01) return("**")
+  if (p < 0.05) return("*")
+  return("")
+}
+
+stars_water <- get_stars(p_water)
+stars_div <- get_stars(p_div)
+stars_water_div <- get_stars(p_water_div)
+
+# 打印所有p值
+cat("\n=== Resistance阶段所有模型与null比较的p值 ===\n")
+cat("res_water vs null: p =", format(p_water, scientific = TRUE, digits = 3), stars_water, "\n")
+cat("res_div vs null: p =", format(p_div, scientific = TRUE, digits = 3), stars_div, "\n")
+cat("res_water_div vs null: p =", format(p_water_div, scientific = TRUE, digits = 3), stars_water_div, "\n")
+
+# 生成预测
 pred <- ggpredict(res_water_div, 
                   terms = c("waterAv_log", "species_diversity"),
-                  type = "fixed")  # fixed effects only
+                  type = "fixed")
 
-# Create the belot
-belot_belalan_res <- belot(pred) +
+# 创建Resistance阶段图表 - 保留趋势线
+plot_bel_ja_res <- ggplot() +
+  # 原始数据点
   geom_point(data = bel_JA_res,
              aes(x = waterAv_log, 
                  y = concentration,
-                 color = species_diversity),
-             size = 2,
-             inherit.aes = FALSE) +
-  geom_line(linewidth = 1) +
+                 color = as.factor(species_diversity)),
+             size = 3,
+             alpha = 0.7) +
+  # 注释掉趋势线，Recovery阶段不显示趋势线
+  # geom_line(linewidth = 1) +
   theme_classic() +
-  theme(legend.position = "top") +
-  ylim(0, 0.25) +
+  theme(legend.position = "top",
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5, size = 10, color = "darkgray"),
+        plot.caption = element_text(hjust = 0.5, size = 9, color = "gray")) +
+  scale_color_discrete(name = "Species Diversity") +
   ylab("Concentration µg/g") +
   xlab("Water field availability (log)") +
+  # 主标题和注释 - 现在包含三个模型
   ggtitle("Resistance")
+
+print(plot_bel_ja_res)
 
 
 # Recovery----------------------------------------
-bel_JA_rec<-bel_JA%>%
-  filter(phase=="Recovery")
-  
+bel_JA <- data_long %>%
+  filter(bel_per == 1, compound == "ja")
+
+bel_JA_rec <- bel_JA %>%
+  filter(phase == "Recovery")
+
+# 添加if语句的结束括号
+if (nrow(bel_JA_rec) > 0) {
+  # 注意：这里创建了concentration_adj但模型中未使用
+  bel_JA_rec <- bel_JA_rec %>%
+    mutate(concentration_adj = concentration + 1e-10)
+}  # 这里添加了结束括号
+
+# Model 1 - 使用原始浓度
 rec_null <- lmer(log10(concentration) ~ 1 + (1|chamber), data = bel_JA_rec)
 rec_water <- lmer(log10(concentration) ~ waterAv_log + (1|chamber), data = bel_JA_rec)
 rec_div <- lmer(log10(concentration) ~ waterAv_log + species_diversity + (1|chamber), 
@@ -496,35 +860,92 @@ rec_water_div <- lmer(log10(concentration) ~ waterAv_log * species_diversity + (
                       data = bel_JA_rec)
 
 shapiro.test(resid(rec_water_div))
+model_comparison <- anova(rec_null, rec_water, rec_div, rec_water_div, test = "LRT")
 
-# Model comparison using likelihood ratio tests (ANOVA)
-anova(rec_null, rec_water, rec_div, rec_water_div, test = "LRT")
+# 打印模型比较结果
+cat("=== Recovery阶段模型比较结果 ===\n")
+print(model_comparison)
 
-# Generate predictions (marginal effects, excluding random effects)
+# 获取每个模型与null比较的p值
+water_vs_null <- anova(rec_null, rec_water, test = "LRT")
+div_vs_null <- anova(rec_null, rec_div, test = "LRT")
+water_div_vs_null <- anova(rec_null, rec_water_div, test = "LRT")
+
+cat("\n=== 单独模型比较 (每个模型都与null模型比较) ===\n")
+cat("rec_water vs null:\n")
+print(water_vs_null)
+cat("\nrec_div vs null:\n")
+print(div_vs_null)
+cat("\nrec_water_div vs null:\n")
+print(water_div_vs_null)
+
+# 提取p值
+p_water <- water_vs_null$`Pr(>Chisq)`[2]
+p_div <- div_vs_null$`Pr(>Chisq)`[2]
+p_water_div <- water_div_vs_null$`Pr(>Chisq)`[2]
+
+# 转换为星号表示
+get_stars <- function(p) {
+  if (is.na(p)) return("")
+  if (p < 0.001) return("***")
+  if (p < 0.01) return("**")
+  if (p < 0.05) return("*")
+  return("")
+}
+
+stars_water <- get_stars(p_water)
+stars_div <- get_stars(p_div)
+stars_water_div <- get_stars(p_water_div)
+
+# 打印所有p值
+cat("\n=== Recovery阶段所有模型与null比较的p值 ===\n")
+cat("rec_water vs null: p =", format(p_water, scientific = TRUE, digits = 3), stars_water, "\n")
+cat("rec_div vs null: p =", format(p_div, scientific = TRUE, digits = 3), stars_div, "\n")
+cat("rec_water_div vs null: p =", format(p_water_div, scientific = TRUE, digits = 3), stars_water_div, "\n")
+
+# 生成预测
 pred <- ggpredict(rec_water_div, 
                   terms = c("waterAv_log", "species_diversity"),
-                  type = "fixed")  # fixed effects only
+                  type = "fixed")
 
-# Create the belot
-belot_belalan_rec <- belot(pred) +
+# 创建Recovery阶段图表 - 保留趋势线
+plot_bel_ja_rec <- plot(pred) +
   geom_point(data = bel_JA_rec,
              aes(x = waterAv_log, 
                  y = concentration,
-                 color = species_diversity),
-             size = 2,
+                 color = as.factor(species_diversity)),
+             size = 3,
+             alpha = 0.7,
              inherit.aes = FALSE) +
-  geom_line(linewidth = 1) +
+  geom_line(linewidth = 1) +  # Recovery阶段保留趋势线
   theme_classic() +
-  theme(legend.position = "top") +
-  ylim(0, 0.25) +
+  theme(legend.position = "top",
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5, size = 10, color = "darkgray"),
+        plot.caption = element_text(hjust = 0.5, size = 9, color = "gray")) +
+  scale_color_discrete(name = "Species Diversity") +
   ylab("Concentration µg/g") +
   xlab("Water field availability (log)") +
-  ggtitle("Recovery")
+  # 主标题和注释 - 现在包含三个模型
+  ggtitle("Recovery",
+          subtitle = paste("Model comparison: div", stars_div, 
+                           
+                           ", water×div", stars_water_div)) +
+  # 可选：添加其他注释
+  labs(caption = paste("p-values (vs null): water =", 
+                       format(p_water, scientific = TRUE, digits = 2),
+                       ", div =", 
+                       format(p_div, scientific = TRUE, digits = 2),
+                       ", water×div =",
+                       format(p_water_div, scientific = TRUE, digits = 2)))
+
+print(plot_bel_ja_rec)
+
 
 ## Plot
 
 com_bel_ja_plot <-  (plot_bel_ja_res |  plot_bel_ja_rec)+ 
-  plot_annotation(title = "JA- Bellis perennis",
+  plot_annotation(title = "JA - Bellis perennis",
                   theme = theme(plot.title = element_text(hjust = 0.5)))
 com_bel_ja_plot
 
@@ -598,7 +1019,7 @@ pred <- ggpredict(water_div,terms = c("waterAv_log","species_diversity"))
 
 ## Plot
 
-com_Plalan_plot <-  (plot_plalan_res |  plot_plalan_rec|pla_ABA_LRR_plot)+ 
+com_Plalan_plot <-  (plot_pla_aba_res |  plot_pla_aba_rec|pla_ABA_LRR_plot)+ 
   plot_annotation(title = "ABA -Plantago lanceolata",
                   theme = theme(plot.title = element_text(hjust = 0.5)))
 com_Plalan_plot
@@ -672,4 +1093,144 @@ com_Pla_ja_plot <-  (plot_pla_ja_res |  plot_pla_ja_rec|pla_JA_LRR_plot)+
                   theme = theme(plot.title = element_text(hjust = 0.5)))
 com_Pla_ja_plot
 
+## LRR: Positive LRR (recovery > resistance), compound concentration increase during recovery.
+
+## Bellis
+
+# ABA------------------------------------------------------------
+bel_ABA_LRR <- data_long %>%
+  filter(bel_per == 1, compound == "aba") %>%
+  group_by(species_diversity, waterAv_log,drought_level) %>%
+  summarise(
+    mean_resistance = mean(concentration[phase == "Resistance"], na.rm = TRUE) + 1e-5,
+    mean_recovery   = mean(concentration[phase == "Recovery"], na.rm = TRUE) + 1e-5,
+    LRR             = log(mean_recovery / mean_resistance),
+    # SE of LRR across replicates
+    se_LRR          = sd(log((concentration[phase == "Recovery"] + 1e-5) / 
+                             (concentration[phase == "Resistance"] + 1e-5)), na.rm = TRUE) / 
+                      sqrt(n()) )
+
+bel_ABA_LRR <- bel_ABA_LRR %>%
+  mutate(
+    LRR_lower = LRR - 1.96 * se_LRR,
+    LRR_upper = LRR + 1.96 * se_LRR )
+
+
+
+ggplot(bel_ABA_LRR, aes(x = factor(drought_level), y = LRR, 
+                        group = species_diversity, color = species_diversity, fill = species_diversity)) +
+  geom_ribbon(aes(ymin = LRR_lower, ymax = LRR_upper), alpha = 0.2, color = NA) +  # shaded CI
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  theme_classic() +
+  xlab("Drought level") +
+  ylab("Log Response Ratio (LRR)") +
+  theme(legend.position = "top")
+
+# Model
+null<-lm(LRR~1,data=bel_ABA_LRR)
+water<-lm(LRR~waterAv_log,data=bel_ABA_LRR)
+div<-lm(LRR~waterAv_log+species_diversity,data=bel_ABA_LRR)
+water_div<-lm(LRR~waterAv_log*species_diversity,
+                  data=bel_ABA_LRR)
+
+
+anova(null,water,div,water_div)
+shapiro.test(resid(water_div))
+
+pred <- ggpredict(water_div,terms = c("waterAv_log","species_diversity"))
+
+  # 6. Create the plot
+  bel_ABA_LRR_plot<- plot(pred) +
+    geom_point(data = bel_ABA_LRR,
+             aes(x = waterAv_log, 
+                 y = LRR,
+                 color = species_diversity),
+             size = 2,
+    inherit.aes = FALSE) +
+    geom_line(linewidth = 1) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+    theme_classic() +
+    ylim(-1.5,1.5)+
+    theme(legend.position = "top")+
+     ylab("Log Response Ratio (LRR)") +
+    xlab("Water field availability (log)") +
+    ggtitle("Effect size")
+
+## Plot
+
+com_Belper_plot <-  (plot_bel_aba_res |  plot_bel_aba_rec|bel_ABA_LRR_plot)+ 
+  plot_annotation(title = "ABA -Bellis perennis",
+                  theme = theme(plot.title = element_text(hjust = 0.5)))
+com_Belper_plot
+
+# JA------------------------------------------------------------
+
+bel_JA_LRR <- data_long %>%
+  filter(bel_per == 1, compound == "ja") %>%
+  group_by(species_diversity, waterAv_log,drought_level) %>%
+  summarise(
+    mean_resistance = mean(concentration[phase == "Resistance"], na.rm = TRUE) + 1e-5,
+    mean_recovery   = mean(concentration[phase == "Recovery"], na.rm = TRUE) + 1e-5,
+    LRR             = log(mean_recovery / mean_resistance),
+    # SE of LRR across replicates
+    se_LRR          = sd(log((concentration[phase == "Recovery"] + 1e-5) / 
+                             (concentration[phase == "Resistance"] + 1e-5)), na.rm = TRUE) / 
+                      sqrt(n()) )
+
+bel_JA_LRR <- bel_JA_LRR %>%
+  mutate(
+    LRR_lower = LRR - 1.96 * se_LRR,
+    LRR_upper = LRR + 1.96 * se_LRR )
+
+
+
+ggplot(bel_JA_LRR, aes(x = factor(drought_level), y = LRR, 
+                        group = species_diversity, color = species_diversity, fill = species_diversity)) +
+  geom_ribbon(aes(ymin = LRR_lower, ymax = LRR_upper), alpha = 0.2, color = NA) +  # shaded CI
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  theme_classic() +
+  xlab("Drought level") +
+  ylab("Log Response Ratio (LRR)") +
+  theme(legend.position = "top")
+
+# Model
+null<-lm(LRR~1,data=bel_JA_LRR)
+water<-lm(LRR~waterAv_log,data=bel_JA_LRR)
+div<-lm(LRR~waterAv_log+species_diversity,data=bel_JA_LRR)
+water_div<-lm(LRR~waterAv_log*species_diversity,
+                  data=bel_JA_LRR)
+
+
+anova(null,water,div,water_div)
+
+shapiro.test(resid(water_div))
+ pred <- ggpredict(water_div,terms = c("waterAv_log","species_diversity"))
+
+  # 6. Create the plot
+  bel_JA_LRR_plot<- plot(pred) +
+    geom_point(data = bel_JA_LRR,
+             aes(x = waterAv_log, 
+                 y = LRR,
+                 color = species_diversity),
+             size = 2,
+    inherit.aes = FALSE) +
+    geom_line(linewidth = 1) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+    theme_classic() +
+    ylim(-1.5,1.5)+
+    theme(legend.position = "top")+
+     ylab("Log Response Ratio (LRR)") +
+    xlab("Water field availability (log)") +
+    ggtitle("Effect size")
+
+ ## Plot
+
+com_Bel_ja_plot <-  (plot_bel_ja_res |  plot_bel_ja_rec|bel_JA_LRR_plot)+ 
+  plot_annotation(title = "JA -Bellis perennis",
+                  theme = theme(plot.title = element_text(hjust = 0.5)))
+com_Bel_ja_plot
 
