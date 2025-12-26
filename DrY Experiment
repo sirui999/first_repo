@@ -131,6 +131,9 @@ plalan_recovery<-ggplot(data_long%>%
 
 com_Plalan_plot <- plalan_resistance | plalan_recovery
 print(com_Plalan_plot)
+ggsave(here("Phytohormones_1226", "Phytohormones_Plantago.png"), 
+       com_Plalan_plot, 
+       width = 12, height = 6, dpi = 300)
 
 ## 2. Bellis perennis 图形
 cat("\n=== 创建 Bellis perennis 图形 ===\n")
@@ -160,8 +163,11 @@ belper_recovery<-ggplot(data_long%>%
   ggtitle("Bellis recovery")
 
 
-com_belper_plot <- belper_resistance | belper_recovery
-print(com_belper_plot)
+com_Belper_plot <- belper_resistance | belper_recovery
+print(com_Belper_plot)
+ggsave(here("Phytohormones_1226", "Phytohormones_Bellis.png"), 
+       com_Belper_plot, 
+       width = 12, height = 6, dpi = 300)
 
 
 ## 3. 回归分析示例 - Plantago ABA
@@ -339,11 +345,38 @@ plot_pla_aba_rec <- ggplot() +
   ggtitle("Recovery")
 
 
-com_Plalan_plot <- (plot_pla_aba_res | plot_pla_aba_rec) + 
+com_pla_aba_plot <- (plot_pla_aba_res | plot_pla_aba_rec) + 
   plot_annotation(title = "ABA - Plantago lanceolata",
                   theme = theme(plot.title = element_text(hjust = 0.5)))
 
-print(com_Plalan_plot)
+print(com_pla_aba_plot)
+
+# 1. 首先定义保存目录
+save_dir <- here("Phytohormones_1226", "ABA_Analysis")
+if (!dir.exists(save_dir)) {
+  dir.create(save_dir, recursive = TRUE)
+  cat("创建目录:", save_dir, "\n")
+}
+
+# 2. 保存组合图表
+combined_path <- here(save_dir, "ABA_Plantago.png")
+ggsave(combined_path, 
+       com_pla_aba_plot, 
+       width = 12, height = 6, dpi = 300)
+cat("组合图表保存到:", combined_path, "\n")
+
+# 3. 保存单个图表
+resistance_path <- here(save_dir, "ABA_Plantago_Resistance.png")
+ggsave(resistance_path, 
+       plot_pla_aba_res, 
+       width = 10, height = 6, dpi = 300)
+cat("Resistance图表保存到:", resistance_path, "\n")
+
+recovery_path <- here(save_dir, "ABA_Plantago_Recovery.png")
+ggsave(recovery_path, 
+       plot_pla_aba_rec, 
+       width = 10, height = 6, dpi = 300)
+cat("Recovery图表保存到:", recovery_path, "\n")
 
 
 ## JA
@@ -521,10 +554,39 @@ plot_pla_ja_rec <- ggplot() +
 
 ## Plot
 
-com_Plalan_plot <-  (plot_pla_ja_res |  plot_pla_ja_rec)+ 
+com_pla_ja_plot <-  (plot_pla_ja_res |  plot_pla_ja_rec)+ 
   plot_annotation(title = "JA - Plantago lanceolata",
                   theme = theme(plot.title = element_text(hjust = 0.5)))
-print(com_Plalan_plot)
+print(com_pla_ja_plot)
+
+# 1. 首先定义保存目录
+save_dir <- here("Phytohormones_1226", "JA_Analysis")
+if (!dir.exists(save_dir)) {
+  dir.create(save_dir, recursive = TRUE)
+  cat("创建目录:", save_dir, "\n")
+}
+
+# 2. 保存组合图表
+combined_path <- here(save_dir, "JA_Plantago.png")
+ggsave(combined_path, 
+       com_pla_ja_plot, 
+       width = 12, height = 6, dpi = 300)
+cat("组合图表保存到:", combined_path, "\n")
+
+# 3. 保存单个图表
+resistance_path <- here(save_dir, "JA_Plantago_Resistance.png")
+ggsave(resistance_path, 
+       plot_pla_ja_res, 
+       width = 10, height = 6, dpi = 300)
+cat("Resistance图表保存到:", resistance_path, "\n")
+
+recovery_path <- here(save_dir, "JA_Plantago_Recovery.png")
+ggsave(recovery_path, 
+       plot_pla_ja_rec, 
+       width = 10, height = 6, dpi = 300)
+cat("Recovery图表保存到:", recovery_path, "\n")
+
+
 
 ## Bellis
 ## ABA
@@ -733,10 +795,38 @@ plot_bel_aba_rec <- plot(pred) +
 
 ## Plot 
 
-com_belper_plot <-  (plot_bel_aba_res |  plot_bel_aba_rec)+ 
+com_bel_aba_plot <-  (plot_bel_aba_res |  plot_bel_aba_rec)+ 
   plot_annotation(title = "ABA - Bellis perennis",
                   theme = theme(plot.title = element_text(hjust = 0.5)))
 com_belper_plot
+
+# 1. 首先定义保存目录
+save_dir <- here("Phytohormones_1226", "ABA_Analysis")
+if (!dir.exists(save_dir)) {
+  dir.create(save_dir, recursive = TRUE)
+  cat("创建目录:", save_dir, "\n")
+}
+
+# 2. 保存组合图表
+combined_path <- here(save_dir, "ABA_Bellis.png")
+ggsave(combined_path, 
+       com_bel_aba_plot, 
+       width = 12, height = 6, dpi = 300)
+cat("组合图表保存到:", combined_path, "\n")
+
+# 3. 保存单个图表
+resistance_path <- here(save_dir, "ABA_Bellis_Resistance.png")
+ggsave(resistance_path, 
+       plot_bel_aba_res, 
+       width = 10, height = 6, dpi = 300)
+cat("Resistance图表保存到:", resistance_path, "\n")
+
+recovery_path <- here(save_dir, "ABA_Plantago_Recovery.png")
+ggsave(recovery_path, 
+       plot_bel_aba_rec, 
+       width = 10, height = 6, dpi = 300)
+cat("Recovery图表保存到:", recovery_path, "\n")
+
 
 
 
@@ -949,6 +1039,33 @@ com_bel_ja_plot <-  (plot_bel_ja_res |  plot_bel_ja_rec)+
                   theme = theme(plot.title = element_text(hjust = 0.5)))
 com_bel_ja_plot
 
+# 1. 首先定义保存目录
+save_dir <- here("Phytohormones_1226", "JA_Analysis")
+if (!dir.exists(save_dir)) {
+  dir.create(save_dir, recursive = TRUE)
+  cat("创建目录:", save_dir, "\n")
+}
+
+# 2. 保存组合图表
+combined_path <- here(save_dir, "JA_Bellis.png")
+ggsave(combined_path, 
+       com_bel_ja_plot, 
+       width = 12, height = 6, dpi = 300)
+cat("组合图表保存到:", combined_path, "\n")
+
+# 3. 保存单个图表
+resistance_path <- here(save_dir, "JA_Bellis_Resistance.png")
+ggsave(resistance_path, 
+       plot_bel_ja_res, 
+       width = 10, height = 6, dpi = 300)
+cat("Resistance图表保存到:", resistance_path, "\n")
+
+recovery_path <- here(save_dir, "JA_Bellis_Recovery.png")
+ggsave(recovery_path, 
+       plot_bel_ja_rec, 
+       width = 10, height = 6, dpi = 300)
+cat("Recovery图表保存到:", recovery_path, "\n")
+
 ## Log response ratio effect size
 
 ## LRR: Positive LRR (recovery > resistance), compound concentration increase during recovery.
@@ -1016,13 +1133,15 @@ pred <- ggpredict(water_div,terms = c("waterAv_log","species_diversity"))
      ylab("Log Response Ratio (LRR)") +
     xlab("Water field availability (log)") +
     ggtitle("Effect size")
+print(pla_ABA_LRR_plot)
+
 
 ## Plot
 
 com_Plalan_plot <-  (plot_pla_aba_res |  plot_pla_aba_rec|pla_ABA_LRR_plot)+ 
   plot_annotation(title = "ABA -Plantago lanceolata",
                   theme = theme(plot.title = element_text(hjust = 0.5)))
-com_Plalan_plot
+print(com_Plalan_plot)
 
 # JA------------------------------------------------------------
 
@@ -1085,6 +1204,8 @@ shapiro.test(resid(water_div))
      ylab("Log Response Ratio (LRR)") +
     xlab("Water field availability (log)") +
     ggtitle("Effect size")
+print(pla_JA_LRR_plot)
+
 
  ## Plot
 
@@ -1157,6 +1278,8 @@ pred <- ggpredict(water_div,terms = c("waterAv_log","species_diversity"))
      ylab("Log Response Ratio (LRR)") +
     xlab("Water field availability (log)") +
     ggtitle("Effect size")
+print(bel_ABA_LRR_plot)
+
 
 ## Plot
 
@@ -1226,11 +1349,11 @@ shapiro.test(resid(water_div))
      ylab("Log Response Ratio (LRR)") +
     xlab("Water field availability (log)") +
     ggtitle("Effect size")
+print(bel_JA_LRR_plot)
 
  ## Plot
 
 com_Bel_ja_plot <-  (plot_bel_ja_res |  plot_bel_ja_rec|bel_JA_LRR_plot)+ 
   plot_annotation(title = "JA -Bellis perennis",
                   theme = theme(plot.title = element_text(hjust = 0.5)))
-com_Bel_ja_plot
-
+print(com_Bel_ja_plot)
