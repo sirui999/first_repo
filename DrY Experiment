@@ -1459,7 +1459,7 @@ ggsave(combined_path,
 cat("组合图表保存到:", combined_path, "\n")
 
 # 3. 保存单个图表
-resistance_path <- here(save_dir, "ABA_BEL_LRR.png")
+resistance_path <- here(save_dir, "JA_BEL_LRR.png")
 ggsave(resistance_path, 
        bel_JA_LRR_plot, 
        width = 10, height = 6, dpi = 300)
