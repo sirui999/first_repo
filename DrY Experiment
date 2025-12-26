@@ -797,7 +797,7 @@ plot_bel_aba_rec <- plot(pred) +
 com_bel_aba_plot <-  (plot_bel_aba_res |  plot_bel_aba_rec)+ 
   plot_annotation(title = "ABA - Bellis perennis",
                   theme = theme(plot.title = element_text(hjust = 0.5)))
-com_belper_plot
+com_bel_per_plot
 
 # 1. 首先定义保存目录
 save_dir <- here("H:/PhD_Arbeit/WP1/Thesis/DrY/Figures/Phytohormones_1226", "ABA_Analysis")
@@ -1092,7 +1092,7 @@ pla_ABA_LRR <- pla_ABA_LRR %>%
 
 
 
-ggplot(pla_ABA_LRR, aes(x = factor(drought_level), y = LRR, 
+pla_aba_dry_level_LRR <- ggplot(pla_ABA_LRR, aes(x = factor(drought_level), y = LRR, 
                         group = species_diversity, color = species_diversity, fill = species_diversity)) +
   geom_ribbon(aes(ymin = LRR_lower, ymax = LRR_upper), alpha = 0.2, color = NA) +  # shaded CI
   geom_line(linewidth = 1) +
@@ -1142,6 +1142,35 @@ com_Plalan_plot <-  (plot_pla_aba_res |  plot_pla_aba_rec|pla_ABA_LRR_plot)+
                   theme = theme(plot.title = element_text(hjust = 0.5)))
 print(com_Plalan_plot)
 
+# 1. 首先定义保存目录
+save_dir <- here("H:/PhD_Arbeit/WP1/Thesis/DrY/Figures/Phytohormones_1226", "ABA_Analysis")
+if (!dir.exists(save_dir)) {
+  dir.create(save_dir, recursive = TRUE)
+  cat("创建目录:", save_dir, "\n")
+}
+
+# 2. 保存组合图表
+combined_path <- here(save_dir, "ABA_PLA_LRR_COM.png")
+ggsave(combined_path, 
+       com_Plalan_plot, 
+       width = 12, height = 6, dpi = 300)
+cat("组合图表保存到:", combined_path, "\n")
+
+# 3. 保存单个图表
+resistance_path <- here(save_dir, "ABA_Pla_LRR.png")
+ggsave(resistance_path, 
+       pla_ABA_LRR_plot, 
+       width = 10, height = 6, dpi = 300)
+cat("Resistance图表保存到:", resistance_path, "\n")
+
+gg_path <- here(save_dir, "ABA_Pla_DL_LRR.png")
+ggsave(gg_path, 
+       pla_aba_dry_level_LRR, 
+       width = 10, height = 6, dpi = 300)
+cat("Dry Level图表保存到:", gg_path, "\n")
+
+
+
 # JA------------------------------------------------------------
 
 pla_JA_LRR <- data_long %>%
@@ -1163,7 +1192,7 @@ pla_JA_LRR <- pla_JA_LRR %>%
 
 
 
-ggplot(pla_JA_LRR, aes(x = factor(drought_level), y = LRR, 
+pla_ja_dry_level_LRR<- ggplot(pla_JA_LRR, aes(x = factor(drought_level), y = LRR, 
                         group = species_diversity, color = species_diversity, fill = species_diversity)) +
   geom_ribbon(aes(ymin = LRR_lower, ymax = LRR_upper), alpha = 0.2, color = NA) +  # shaded CI
   geom_line(linewidth = 1) +
@@ -1213,6 +1242,37 @@ com_Pla_ja_plot <-  (plot_pla_ja_res |  plot_pla_ja_rec|pla_JA_LRR_plot)+
                   theme = theme(plot.title = element_text(hjust = 0.5)))
 com_Pla_ja_plot
 
+# 1. 首先定义保存目录
+save_dir <- here("H:/PhD_Arbeit/WP1/Thesis/DrY/Figures/Phytohormones_1226", "JA_Analysis")
+if (!dir.exists(save_dir)) {
+  dir.create(save_dir, recursive = TRUE)
+  cat("创建目录:", save_dir, "\n")
+}
+
+# 2. 保存组合图表
+combined_path <- here(save_dir, "JA_PLA_LRR_COM.png")
+ggsave(combined_path, 
+       com_Pla_ja_plot, 
+       width = 12, height = 6, dpi = 300)
+cat("组合图表保存到:", combined_path, "\n")
+
+# 3. 保存单个图表
+resistance_path <- here(save_dir, "JA_Pla_LRR.png")
+ggsave(resistance_path, 
+       pla_JA_LRR_plot, 
+       width = 10, height = 6, dpi = 300)
+cat("Resistance图表保存到:", resistance_path, "\n")
+
+gg_path <- here(save_dir, "JA_Pla_DL_LRR.png")
+ggsave(gg_path, 
+       pla_aba_dry_level_LRR, 
+       width = 10, height = 6, dpi = 300)
+cat("Dry Level图表保存到:", gg_path, "\n")
+
+
+
+
+
 ## LRR: Positive LRR (recovery > resistance), compound concentration increase during recovery.
 
 ## Bellis
@@ -1237,7 +1297,7 @@ bel_ABA_LRR <- bel_ABA_LRR %>%
 
 
 
-ggplot(bel_ABA_LRR, aes(x = factor(drought_level), y = LRR, 
+bel_aba_dry_level_LRR<- ggplot(bel_ABA_LRR, aes(x = factor(drought_level), y = LRR, 
                         group = species_diversity, color = species_diversity, fill = species_diversity)) +
   geom_ribbon(aes(ymin = LRR_lower, ymax = LRR_upper), alpha = 0.2, color = NA) +  # shaded CI
   geom_line(linewidth = 1) +
@@ -1282,10 +1342,37 @@ print(bel_ABA_LRR_plot)
 
 ## Plot
 
-com_Belper_plot <-  (plot_bel_aba_res |  plot_bel_aba_rec|bel_ABA_LRR_plot)+ 
+com_Bel_aba_plot <-  (plot_bel_aba_res |  plot_bel_aba_rec|bel_ABA_LRR_plot)+ 
   plot_annotation(title = "ABA -Bellis perennis",
                   theme = theme(plot.title = element_text(hjust = 0.5)))
-com_Belper_plot
+com_Bel_aba_plot
+
+# 1. 首先定义保存目录
+save_dir <- here("H:/PhD_Arbeit/WP1/Thesis/DrY/Figures/Phytohormones_1226", "ABA_Analysis")
+if (!dir.exists(save_dir)) {
+  dir.create(save_dir, recursive = TRUE)
+  cat("创建目录:", save_dir, "\n")
+}
+
+# 2. 保存组合图表
+combined_path <- here(save_dir, "ABA_BEL_LRR_COM.png")
+ggsave(combined_path, 
+       com_Bel_aba_plot, 
+       width = 12, height = 6, dpi = 300)
+cat("组合图表保存到:", combined_path, "\n")
+
+# 3. 保存单个图表
+resistance_path <- here(save_dir, "ABA_BEL_LRR.png")
+ggsave(resistance_path, 
+       bel_ABA_LRR_plot, 
+       width = 10, height = 6, dpi = 300)
+cat("Resistance图表保存到:", resistance_path, "\n")
+
+gg_path <- here(save_dir, "ABA_Bel_DL_LRR.png")
+ggsave(gg_path, 
+       bel_aba_dry_level_LRR, 
+       width = 10, height = 6, dpi = 300)
+cat("Dry Level图表保存到:", gg_path, "\n")
 
 # JA------------------------------------------------------------
 
@@ -1308,7 +1395,7 @@ bel_JA_LRR <- bel_JA_LRR %>%
 
 
 
-ggplot(bel_JA_LRR, aes(x = factor(drought_level), y = LRR, 
+bel_ja_dry_level_LRR<-ggplot(bel_JA_LRR, aes(x = factor(drought_level), y = LRR, 
                         group = species_diversity, color = species_diversity, fill = species_diversity)) +
   geom_ribbon(aes(ymin = LRR_lower, ymax = LRR_upper), alpha = 0.2, color = NA) +  # shaded CI
   geom_line(linewidth = 1) +
@@ -1356,3 +1443,30 @@ com_Bel_ja_plot <-  (plot_bel_ja_res |  plot_bel_ja_rec|bel_JA_LRR_plot)+
   plot_annotation(title = "JA -Bellis perennis",
                   theme = theme(plot.title = element_text(hjust = 0.5)))
 print(com_Bel_ja_plot)
+
+# 1. 首先定义保存目录
+save_dir <- here("H:/PhD_Arbeit/WP1/Thesis/DrY/Figures/Phytohormones_1226", "JA_Analysis")
+if (!dir.exists(save_dir)) {
+  dir.create(save_dir, recursive = TRUE)
+  cat("创建目录:", save_dir, "\n")
+}
+
+# 2. 保存组合图表
+combined_path <- here(save_dir, "JA_BEL_LRR_COM.png")
+ggsave(combined_path, 
+       com_Bel_ja_plot, 
+       width = 12, height = 6, dpi = 300)
+cat("组合图表保存到:", combined_path, "\n")
+
+# 3. 保存单个图表
+resistance_path <- here(save_dir, "ABA_BEL_LRR.png")
+ggsave(resistance_path, 
+       bel_JA_LRR_plot, 
+       width = 10, height = 6, dpi = 300)
+cat("Resistance图表保存到:", resistance_path, "\n")
+
+gg_path <- here(save_dir, "JA_Bel_DL_LRR.png")
+ggsave(gg_path, 
+       bel_ja_dry_level_LRR, 
+       width = 10, height = 6, dpi = 300)
+cat("Dry Level图表保存到:", gg_path, "\n")
