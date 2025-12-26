@@ -131,7 +131,7 @@ plalan_recovery<-ggplot(data_long%>%
 
 com_Plalan_plot <- plalan_resistance | plalan_recovery
 print(com_Plalan_plot)
-ggsave(here("Phytohormones_1226", "Phytohormones_Plantago.png"), 
+ggsave(here("H:/PhD_Arbeit/WP1/Thesis/DrY/Figures/Phytohormones_1226", "Phytohormones_Plantago.png"), 
        com_Plalan_plot, 
        width = 12, height = 6, dpi = 300)
 
@@ -165,7 +165,7 @@ belper_recovery<-ggplot(data_long%>%
 
 com_Belper_plot <- belper_resistance | belper_recovery
 print(com_Belper_plot)
-ggsave(here("Phytohormones_1226", "Phytohormones_Bellis.png"), 
+ggsave(here("H:/PhD_Arbeit/WP1/Thesis/DrY/Figures/Phytohormones_1226", "Phytohormones_Bellis.png"), 
        com_Belper_plot, 
        width = 12, height = 6, dpi = 300)
 
@@ -352,7 +352,7 @@ com_pla_aba_plot <- (plot_pla_aba_res | plot_pla_aba_rec) +
 print(com_pla_aba_plot)
 
 # 1. 首先定义保存目录
-save_dir <- here("Phytohormones_1226", "ABA_Analysis")
+save_dir <- here("H:/PhD_Arbeit/WP1/Thesis/DrY/Figures/Phytohormones_1226", "ABA_Analysis")
 if (!dir.exists(save_dir)) {
   dir.create(save_dir, recursive = TRUE)
   cat("创建目录:", save_dir, "\n")
@@ -560,7 +560,7 @@ com_pla_ja_plot <-  (plot_pla_ja_res |  plot_pla_ja_rec)+
 print(com_pla_ja_plot)
 
 # 1. 首先定义保存目录
-save_dir <- here("Phytohormones_1226", "JA_Analysis")
+save_dir <- here("H:/PhD_Arbeit/WP1/Thesis/DrY/Figures/Phytohormones_1226", "JA_Analysis")
 if (!dir.exists(save_dir)) {
   dir.create(save_dir, recursive = TRUE)
   cat("创建目录:", save_dir, "\n")
@@ -696,7 +696,6 @@ plot_bel_aba_res <- ggplot() +
 bel_ABA <- data_long %>%
   filter(bel_per == 1, compound == "aba")
 
-# Recovery----------------------------------------
 bel_ABA_rec <- bel_ABA %>%
   filter(phase == "Recovery")
 
@@ -801,7 +800,7 @@ com_bel_aba_plot <-  (plot_bel_aba_res |  plot_bel_aba_rec)+
 com_belper_plot
 
 # 1. 首先定义保存目录
-save_dir <- here("Phytohormones_1226", "ABA_Analysis")
+save_dir <- here("H:/PhD_Arbeit/WP1/Thesis/DrY/Figures/Phytohormones_1226", "ABA_Analysis")
 if (!dir.exists(save_dir)) {
   dir.create(save_dir, recursive = TRUE)
   cat("创建目录:", save_dir, "\n")
@@ -1040,7 +1039,7 @@ com_bel_ja_plot <-  (plot_bel_ja_res |  plot_bel_ja_rec)+
 com_bel_ja_plot
 
 # 1. 首先定义保存目录
-save_dir <- here("Phytohormones_1226", "JA_Analysis")
+save_dir <- here("H:/PhD_Arbeit/WP1/Thesis/DrY/Figures/Phytohormones_1226", "JA_Analysis")
 if (!dir.exists(save_dir)) {
   dir.create(save_dir, recursive = TRUE)
   cat("创建目录:", save_dir, "\n")
