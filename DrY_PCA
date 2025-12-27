@@ -35,7 +35,8 @@ data <- read_csv2(
     species_richness = as.factor(species_richness),
     pla_lan = as.factor(pla_lan),
     bel_per = as.factor(bel_per),
-    harvest = as.factor(ernte)
+    harvest = as.factor(ernte),
+    chamber = as.factor(chamber)
   ) %>%
   # recode drought and log transform
   mutate(
@@ -105,7 +106,6 @@ pca_data <- data_long %>%
       bel_per == 1 ~ "Bellis_perennis",
       TRUE ~ "Other"
     ),
-    chamber = paste0("C", cabin, "_D", desk),
     env_group = paste0("Water_", round(waterAv_log, 2), 
                        "_Div_", species_diversity)
   ) %>%
